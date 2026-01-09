@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 dependencies = [
+    "aiohttp>=3.13.3",
     "pydantic>=2.12.5",
     "textual>=6.7.1",
     "textual-dev>=1.8.0",

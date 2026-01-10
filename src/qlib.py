@@ -1,95 +1,60 @@
 import uuid
-from dataclasses import asdict
-from typing import Literal, Optional
+from typing import Literal, Optional, Type
 
 from aiohttp import ClientSession
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel
 
 import dtos
 
 
-@dataclass
-class LeftAsymptotic:
-    pass
-
-
-@dataclass
-class RightAsymptotic:
-    pass
-
-
-@dataclass
-class Density:
-    left_strike: float
-    right_strike: float
-
-
-type Arbitrage = LeftAsymptotic | RightAsymptotic | Density
-
-
-@dataclass
-class ArbitrageCheck:
-    arbitrage: Optional[Arbitrage]
-
-
-@dataclass
-class VolSampling:
-    quoted_strikes: list[float]
-    quoted_vols: list[float]
-    quoted_pdf: list[float]
-    strikes: list[float]
-    vols: list[float]
-    pdf: list[float]
-
-
-@dataclass
-class RpcRequest:
+class RpcRequest(BaseModel):
     method: str
     params: dtos.ArbitrageParams | dtos.VolSamplingParams
     id: str
     jsonrpc: Literal["2.0"] = "2.0"
 
 
-@dataclass
-class Error:
+class Error(BaseModel):
     code: int
     message: str
     data: Optional[dict]
 
 
-@dataclass
-class RpcResponse:
+class RpcResponse(BaseModel):
     result: Optional[dict]
     error: Optional[Error]
     id: Optional[str]
     jsonrpc: Literal["2.0"] = "2.0"
 
 
-async def arbitrage_check(
-    params: dtos.ArbitrageParams, session: ClientSession, remote_url: str
-) -> ArbitrageCheck:
-    request = RpcRequest("arbitrage", params, str(uuid.uuid4()))
-    data = asdict(request)
-    async with session.post(remote_url, json=data) as response:
+async def rpc_call[T](
+    method: str,
+    params: BaseModel,
+    session: ClientSession,
+    remote_url: str,
+    kls: Type[T],
+) -> T:
+    request = RpcRequest(method=method, params=params, id=str(uuid.uuid4()))
+    json = RpcRequest.model_dump(request, by_alias=True)
+    async with session.post(remote_url, json=json) as response:
         js = await response.json()
-        rsp = RpcResponse(**js)
+        rsp = RpcResponse.model_validate(js)
         if rsp.error:
             raise Exception(f"rpc error: {rsp.error.message}")
         if rsp.result is None:
             raise Exception("rpc missing `result` in response")
-        return ArbitrageCheck(**rsp.result)
+        return kls(**rsp.result)
+
+
+async def arbitrage_check(
+    params: dtos.ArbitrageParams, session: ClientSession, remote_url: str
+) -> dtos.ArbitrageCheck:
+    rsp = await rpc_call("arbitrage", params, session, remote_url, dtos.ArbitrageCheck)
+    return rsp
 
 
 async def vol_sampling(
     params: dtos.VolSamplingParams, session: ClientSession, remote_url: str
-) -> VolSampling:
-    request = RpcRequest("volsampling", params, str(uuid.uuid4()))
-    data = asdict(request)
-    async with session.post(remote_url, json=data) as response:
-        js = await response.json()
-        rsp = RpcResponse(**js)
-        if rsp.error:
-            raise Exception(f"rpc error: {rsp.error.message}")
-        if rsp.result is None:
-            raise Exception("rpc missing `result` in response")
-        return VolSampling(**rsp.result)
+) -> dtos.VolSampling:
+    rsp = await rpc_call("volsampling", params, session, remote_url, dtos.VolSampling)
+    return rsp

@@ -2,14 +2,13 @@ from datetime import date
 from enum import Enum, auto
 from typing import Literal, Optional, Tuple
 
+from pydantic.config import ConfigDict
 from pydantic.main import BaseModel
 from pydantic.v1.utils import to_lower_camel
 
 
 class Dto(BaseModel):
-    class Config:
-        alias_generator = to_lower_camel
-        validate_by_name = True
+    model_config = ConfigDict(alias_generator=to_lower_camel, validate_by_name=True)
 
 
 class Curve(Dto):
@@ -46,7 +45,7 @@ class Libor(Dto):
     calendar: str
     reset_curve: Curve
     bd_convention: BusinessDayConvention
-    type: Literal["libor"] = "libor"
+    type: Literal["Libor"] = "Libor"
 
 
 class SwapRate(Dto):
@@ -61,6 +60,7 @@ class SwapRate(Dto):
     stub: StubConvention
     direction: Direction
     discount_curve: Curve
+    type: Literal["SwapRate"] = "SwapRate"
 
 
 class CompoundedSwapRate(Dto):
@@ -76,6 +76,7 @@ class CompoundedSwapRate(Dto):
     stub: StubConvention
     direction: Direction
     discount_curve: Curve
+    type: Literal["CompoundedSwapRate"] = "CompoundedSwapRate"
 
 
 type Underlying = Libor | SwapRate | CompoundedSwapRate
@@ -130,10 +131,12 @@ type Payoff = Caplet | Swaption | BackwardLookingCaplet
 
 class Discounts(Dto):
     discounts: list[Tuple[date, float]]
+    type: Literal["Discounts"] = "Discounts"
 
 
 class ContinuousCompounding(Dto):
     rate: float
+    type: Literal["ContinuousCompounding"] = "ContinuousCompounding"
 
 
 type YieldCurve = Discounts | ContinuousCompounding
@@ -152,7 +155,12 @@ class VolatilitySurface(Dto):
     surface: dict[str, VolatilitySkew]
 
 
+class VolUnit(Enum):
+    BpPerYear = "BpPerYear"
+
+
 class VolatilityCube(Dto):
+    unit: VolUnit
     cube: dict[str, VolatilitySurface]
 
 
@@ -201,7 +209,7 @@ class Static(Dto):
 
 
 class ArbitrageParams(Dto):
-    t: date
+    t_ref: date
     market: dict[str, CcyMarket]
     static: Static
     currency: str
@@ -210,7 +218,7 @@ class ArbitrageParams(Dto):
 
 
 class VolSamplingParams(Dto):
-    t: date
+    t_ref: date
     market: dict[str, CcyMarket]
     static: Static
     currency: str
@@ -229,8 +237,7 @@ class RightAsymptotic(Dto):
 
 
 class Density(Dto):
-    left_strike: float
-    right_strike: float
+    between: Tuple[float, float]
     type: Literal["Density"] = "Density"
 
 
@@ -254,7 +261,7 @@ if __name__ == "__main__":
 
     def run():
         params = ArbitrageParams(
-            t=date.fromisoformat("2025-10-12"),
+            t_ref=date.fromisoformat("2025-10-12"),
             currency="USD",
             market={
                 "USD": CcyMarket(
@@ -272,6 +279,7 @@ if __name__ == "__main__":
                     curves={"SINGLE_CURVE": ContinuousCompounding(rate=0.02)},
                     fixings={},
                     volatility=VolatilityCube(
+                        unit=VolUnit.BpPerYear,
                         cube={
                             "3M": VolatilitySurface(
                                 surface={
@@ -290,7 +298,7 @@ if __name__ == "__main__":
                                     )
                                 }
                             )
-                        }
+                        },
                     ),
                     vol_conventions=VolatilityMarketConventions(
                         boundary_tenor="10Y",
@@ -332,9 +340,7 @@ if __name__ == "__main__":
         print("\n")
         print(
             ArbitrageCheck.model_dump_json(
-                ArbitrageCheck(
-                    arbitrage=Density(left_strike=2.0, right_strike=3.0)
-                ),
+                ArbitrageCheck(arbitrage=Density(between=(2.0, 3.0))),
                 by_alias=True,
             )
         )

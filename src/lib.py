@@ -2,6 +2,7 @@ import uuid
 from typing import Literal, Optional, Type
 
 from aiohttp import ClientSession
+from loguru import logger
 from pydantic import BaseModel
 
 import dtos
@@ -34,6 +35,7 @@ async def _rpc_call[T: BaseModel](
     remote_url: str,
     kls: Type[T],
 ) -> T:
+    logger.info(f"rpc call method: {method}")
     request = RpcRequest(method=method, params=params, id=str(uuid.uuid4()))
     json = request.model_dump(by_alias=True, mode="json")
     async with session.post(remote_url, json=json) as response:

@@ -47,20 +47,44 @@ class Libor(Dto):
     bd_convention: BusinessDayConvention
     type: Literal["Libor"] = "Libor"
 
+    def to_conventions(self) -> "LiborConventions":
+        return LiborConventions(
+            currency=self.currency,
+            spot_lag=self.spot_lag,
+            day_counter=self.day_counter,
+            calendar=self.calendar,
+            reset_curve=self.reset_curve,
+            bd_convention=self.bd_convention,
+        )
+
 
 class SwapRate(Dto):
     tenor: str
     spot_lag: int
     payment_delay: int
-    fixed_period: int
+    fixed_period: str
     floating_rate: str
     fixed_day_counter: DayCounter
     calendar: str
     bd_convention: BusinessDayConvention
-    stub: StubConvention
-    direction: Direction
     discount_curve: Curve
+    stub: StubConvention = StubConvention.LONG
+    direction: Direction = Direction.BACKWARD
     type: Literal["SwapRate"] = "SwapRate"
+
+    def to_conventions(self) -> "SwapRateConventions":
+        return SwapRateConventions(
+            spot_lag=self.spot_lag,
+            payment_delay=self.payment_delay,
+            fixed_period=self.fixed_period,
+            floating_rate=self.floating_rate,
+            fixed_day_counter=self.fixed_day_counter,
+            calendar=self.calendar,
+            bd_convention=self.bd_convention,
+            stub=self.stub,
+            direction=self.direction,
+            discount_curve=self.discount_curve,
+        )
 
 
 class CompoundedSwapRate(Dto):
@@ -187,9 +211,9 @@ class SwapRateConventions(Dto):
 
 
 class VolatilityMarketConventions(Dto):
-    boundary_tenor: str
     libor_rate: LiborConventions
     swap_rate: SwapRateConventions
+    boundary_tenor: str
 
 
 class CcyMarket(Dto):

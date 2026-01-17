@@ -30,7 +30,7 @@ class RpcResponse(BaseModel):
 
 async def _rpc_call[T: BaseModel](
     method: str,
-    params: BaseModel,
+    params: dtos.ArbitrageParams | dtos.VolSamplingParams,
     session: ClientSession,
     remote_url: str,
     kls: Type[T],

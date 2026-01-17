@@ -3,7 +3,7 @@ import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, Dict
 
 import aiosqlite
 from loguru import logger
@@ -111,14 +111,17 @@ GET_LIBOR_RATES_QUERY = """
 """
 
 
-async def get_libor_rates(ccy: str, ctx: Context) -> List[dtos.Libor]:
+async def get_libor_rates(ccy: str, ctx: Context) -> Dict[str, dtos.Libor]:
     logger.info(f"querying database for {ccy} libor rates")
     try:
         async with get_db_connection(ctx) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(GET_LIBOR_RATES_QUERY, (ccy,)) as cursor:
                 rows = await cursor.fetchall()
-                return [dtos.Libor.model_validate_json(row["js"]) for row in rows]
+                return {
+                    str(row["name"]): dtos.Libor.model_validate_json(row["js"])
+                    for row in rows
+                }
     except aiosqlite.Error as e:
         logger.error(f"Failed to get libor rates for {ccy}: {e}")
         raise
@@ -130,14 +133,17 @@ GET_SWAP_RATES_QUERY = """
 """
 
 
-async def get_swap_rates(ccy: str, ctx: Context) -> List[dtos.SwapRate]:
+async def get_swap_rates(ccy: str, ctx: Context) -> Dict[str, dtos.SwapRate]:
     logger.info(f"querying database for {ccy} swap rates")
     try:
         async with get_db_connection(ctx) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(GET_SWAP_RATES_QUERY, (ccy,)) as cursor:
                 rows = await cursor.fetchall()
-                return [dtos.SwapRate.model_validate_json(row["js"]) for row in rows]
+                return {
+                    str(row["name"]): dtos.SwapRate.model_validate_json(row["js"])
+                    for row in rows
+                }
     except aiosqlite.Error as e:
         logger.error(f"Failed to get swap rates for {ccy}: {e}")
         raise
@@ -169,7 +175,7 @@ async def get_conventions(ccy: str, ctx: Context) -> dtos.VolatilityMarketConven
                 boundary_tenor = str(row["boundary_tenor"])
 
                 return dtos.VolatilityMarketConventions(
-                    libor_rate=libor, swap_rate=swap_rate, boundary_tenor=boundary_tenor
+                    libor=libor, swap=swap_rate, boundary_tenor=boundary_tenor
                 )
     except aiosqlite.Error as e:
         logger.error(f"Failed to get conventions for {ccy}: {e}")

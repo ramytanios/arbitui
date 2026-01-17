@@ -1,3 +1,4 @@
+from datetime import datetime
 from datetime import date
 from enum import Enum, auto
 from typing import Literal, Optional, Tuple
@@ -211,8 +212,8 @@ class SwapRateConventions(Dto):
 
 
 class VolatilityMarketConventions(Dto):
-    libor_rate: LiborConventions
-    swap_rate: SwapRateConventions
+    libor: LiborConventions
+    swap: SwapRateConventions
     boundary_tenor: str
 
 
@@ -233,7 +234,7 @@ class Static(Dto):
 
 
 class ArbitrageParams(Dto):
-    t_ref: date
+    t_ref: datetime
     market: dict[str, CcyMarket]
     static: Static
     currency: str
@@ -242,7 +243,7 @@ class ArbitrageParams(Dto):
 
 
 class VolSamplingParams(Dto):
-    t_ref: date
+    t_ref: datetime
     market: dict[str, CcyMarket]
     static: Static
     currency: str

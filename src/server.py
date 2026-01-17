@@ -1,0 +1,170 @@
+from asyncio.queues import Queue
+from asyncio.taskgroups import TaskGroup
+from datetime import datetime
+from pathlib import Path
+from typing import AsyncGenerator, Tuple
+
+import aiohttp
+from loguru import logger
+from pydantic import ValidationError
+from pydantic.type_adapter import TypeAdapter
+from starlette.applications import Starlette
+from starlette.routing import WebSocketRoute
+from starlette.websockets import WebSocket, WebSocketDisconnect
+
+import db
+import dtos
+from handler import Handler
+from message import (
+    ArbitrageCheck,
+    ClientMsg,
+    Conventions,
+    FullArbitrageCheck,
+    GetArbitrageCheck,
+    GetConventions,
+    GetFullArbitrageCheck,
+    GetRates,
+    GetVolSamples,
+    Ping,
+    Pong,
+    Rates,
+    ServerMsg,
+    VolSamples,
+)
+
+server_msg_adapter: TypeAdapter[ServerMsg] = TypeAdapter(ServerMsg)
+
+client_msg_adapter: TypeAdapter[ClientMsg] = TypeAdapter(ClientMsg)
+
+
+async def websocket_endpoint(ws: WebSocket):
+    q_in = Queue[ClientMsg]()
+    q_out = Queue[ServerMsg]()
+
+    rpc_url = "http://localhost:8090/rpc"
+
+    path = Path.home() / ".local" / "share" / "arbitui" / "arbitui.db"
+
+    ctx = db.Context(path)
+
+    await db.init_db(ctx)
+
+    async def recv_loop():
+        try:
+            async for js in ws.iter_json():
+                msg = client_msg_adapter.validate_python(js)
+                await q_in.put(msg)
+        except WebSocketDisconnect:
+            logger.exception("websocket disconnected")
+            raise
+        except ValidationError as e:
+            logger.exception(f"failed to decode client message: {e}")
+        except Exception as e:
+            logger.exception(f"exception in receive loop: {e}")
+            raise
+
+    async def send_loop():
+        while True:
+            try:
+                msg = await q_out.get()
+                await ws.send_json(server_msg_adapter.dump_python(msg))
+            except Exception as e:
+                logger.exception(f"exception in send loop: {e}")
+                raise
+
+    async def handle_client_msg(msg: ClientMsg):
+        match msg:
+            case Ping():
+                logger.info("ping received")
+                await q_out.put(Pong())
+
+            case GetConventions(currency=ccy):
+                try:
+                    conventions = await db.get_conventions(ccy, ctx)
+                    await q_out.put(Conventions(currency=ccy, conventions=conventions))
+                except Exception as e:
+                    logger.exception(f"failed to handle conventions request: {e}")
+
+            case GetRates(currency=ccy):
+                try:
+                    libor_rates = await db.get_libor_rates(ccy, ctx)
+                    swap_rates = await db.get_swap_rates(ccy, ctx)
+                    msg_out = Rates(
+                        currency=ccy, libor_rates=libor_rates, swap_rates=swap_rates
+                    )
+                    await q_out.put(msg_out)
+                except Exception as e:
+                    logger.exception(f"failed to handle rates request: {e}")
+
+            case GetFullArbitrageCheck(currency=ccy, vol_cube=vol):
+                async with aiohttp.ClientSession() as session:
+                    t = datetime.now()
+                    handler = Handler(rpc_url, session, ctx)
+
+                    async def do_checks() -> AsyncGenerator[
+                        Tuple[str, str, dtos.ArbitrageCheck]
+                    ]:
+                        for tenor, surface in vol.cube.items():
+                            for expiry, _ in surface.surface.items():
+                                check = await handler.arbitrage_check(
+                                    t, vol, ccy, tenor, expiry
+                                )
+                                yield (tenor, expiry, check)
+
+                    try:
+                        checks = {
+                            (tenor, expiry): check
+                            async for tenor, expiry, check in do_checks()
+                        }
+                        msg_out = FullArbitrageCheck(currency=ccy, checks=checks)
+                        await q_out.put(msg_out)
+                    except Exception as e:
+                        logger.exception(
+                            f"failed to handle full arbitrage request: {e}"
+                        )
+
+            case GetArbitrageCheck(
+                currency=ccy, vol_cube=vol, tenor=tenor, expiry=expiry
+            ):
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        t = datetime.now()
+                        handler = Handler(rpc_url, session, ctx)
+                        check = await handler.arbitrage_check(
+                            t, vol, ccy, tenor, expiry
+                        )
+                        msg_out = ArbitrageCheck(
+                            currency=ccy, tenor=tenor, expiry=expiry, check=check
+                        )
+                        await q_out.put(msg_out)
+                    except Exception as e:
+                        logger.exception(f"failed to handle arbitrage request: {e}")
+
+            case GetVolSamples(currency=ccy, vol_cube=vol, tenor=tenor, expiry=expiry):
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        t = datetime.now()
+                        handler = Handler(rpc_url, session, ctx)
+                        samples = await handler.vol_sampling(t, vol, ccy, tenor, expiry)
+                        msg_out = VolSamples(
+                            currency=ccy, tenor=tenor, expiry=expiry, samples=samples
+                        )
+                        await q_out.put(msg_out)
+                    except Exception as e:
+                        logger.exception(f"failed to handle vol samples request: {e}")
+
+    async def handle_client_msg_loop():
+        while True:
+            try:
+                msg = await q_in.get()
+                await handle_client_msg(msg)
+            except Exception as e:
+                logger.exception(f"exception in handling client message: {e}")
+
+    async with TaskGroup() as tg:
+        tg.create_task(send_loop())
+        tg.create_task(recv_loop())
+        tg.create_task(handle_client_msg_loop())
+
+
+app = Starlette(routes=[WebSocketRoute("/ws", websocket_endpoint)])

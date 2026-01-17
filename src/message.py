@@ -66,8 +66,8 @@ class Conventions(BaseModel):
 
 class Rates(BaseModel):
     currency: str
-    libor_rates: dtos.Libor
-    swap_rates: dtos.SwapRate
+    libor_rates: dict[str, dtos.Libor]
+    swap_rates: dict[str, dtos.SwapRate]
     type: Literal["rates"] = "rates"
 
 

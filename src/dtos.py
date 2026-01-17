@@ -1,5 +1,4 @@
-from datetime import datetime
-from datetime import date
+from datetime import date, datetime
 from enum import Enum, auto
 from typing import Literal, Optional, Tuple
 
@@ -9,7 +8,11 @@ from pydantic.v1.utils import to_lower_camel
 
 
 class Dto(BaseModel):
-    model_config = ConfigDict(alias_generator=to_lower_camel, validate_by_name=True)
+    model_config = ConfigDict(
+        alias_generator=to_lower_camel,
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
 
 class Curve(Dto):

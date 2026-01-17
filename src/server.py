@@ -38,6 +38,8 @@ client_msg_adapter: TypeAdapter[ClientMsg] = TypeAdapter(ClientMsg)
 
 
 async def websocket_endpoint(ws: WebSocket):
+    await ws.accept()
+
     q_in = Queue[ClientMsg]()
     q_out = Queue[ServerMsg]()
 
@@ -47,6 +49,7 @@ async def websocket_endpoint(ws: WebSocket):
 
     ctx = db.Context(path)
 
+    logger.info("initializing database ..")
     await db.init_db(ctx)
 
     async def recv_loop():
@@ -67,7 +70,7 @@ async def websocket_endpoint(ws: WebSocket):
         while True:
             try:
                 msg = await q_out.get()
-                await ws.send_json(server_msg_adapter.dump_python(msg))
+                await ws.send_json(server_msg_adapter.dump_python(msg, mode="json"))
             except Exception as e:
                 logger.exception(f"exception in send loop: {e}")
                 raise

@@ -5,12 +5,7 @@ import websockets
 from pydantic import ValidationError
 from textual import log
 from textual.app import App, ComposeResult
-from textual.containers import (
-    Horizontal,
-)
-from textual.reactive import reactive
-from textual.widgets import Footer, Header, Label
-from textual.worker import Worker, WorkerState
+from textual.widgets import Footer, Header
 
 from message import ClientMsg, Ping, ServerMsg, client_msg_adapter, server_msg_adapter
 
@@ -69,8 +64,6 @@ class Arbitui(App):
     ]
     CSS_PATH = "styles.tcss"
 
-    is_app_healthy = reactive(False, bindings=True)
-
     THEME_LIGHT = "catppuccin-latte"
     THEME_DARK = "catppuccin-mocha"
 
@@ -78,23 +71,9 @@ class Arbitui(App):
         self.theme = self.THEME_DARK
         self.run_worker(ws_async(), exit_on_error=False)
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        match event.worker.state:
-            case WorkerState.RUNNING:
-                self.is_app_healthy = True
-            case _:
-                self.is_app_healthy = False
-
-    def watch_is_app_healthy(self, is_healthy: bool) -> None:
-        label = self.query_one("#right-label", Label)
-        label.content = "OK" if is_healthy else "NOT OK"
-        label.classes = "health ok" if is_healthy else "health not"
-
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        with Horizontal(id="footer-outer"):
-            yield Horizontal(Footer(), id="footer-inner")
-            yield Label("NOT OK", id="right-label", classes="health not")
+        yield Footer()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,9 @@
+Body {
+    layout: grid;
+    grid-size: 2 2;
+}
+
+.box {
+    height: 100%;
+    border: round green;
+}

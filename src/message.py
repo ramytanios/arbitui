@@ -1,3 +1,4 @@
+from pydantic.type_adapter import TypeAdapter
 from typing import Annotated, Literal, Tuple, Union
 
 from pydantic import BaseModel, Field
@@ -97,3 +98,8 @@ type ServerMsg = Annotated[
     Union[Pong, Conventions, Rates, FullArbitrageCheck, ArbitrageCheck, VolSamples],
     Field(discriminator="type"),
 ]
+
+
+server_msg_adapter: TypeAdapter[ServerMsg] = TypeAdapter(ServerMsg)
+
+client_msg_adapter: TypeAdapter[ClientMsg] = TypeAdapter(ClientMsg)

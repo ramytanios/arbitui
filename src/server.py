@@ -7,7 +7,6 @@ from typing import AsyncGenerator, Tuple
 import aiohttp
 from loguru import logger
 from pydantic import ValidationError
-from pydantic.type_adapter import TypeAdapter
 from starlette.applications import Starlette
 from starlette.routing import WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -30,11 +29,9 @@ from message import (
     Rates,
     ServerMsg,
     VolSamples,
+    client_msg_adapter,
+    server_msg_adapter,
 )
-
-server_msg_adapter: TypeAdapter[ServerMsg] = TypeAdapter(ServerMsg)
-
-client_msg_adapter: TypeAdapter[ClientMsg] = TypeAdapter(ClientMsg)
 
 
 async def websocket_endpoint(ws: WebSocket):

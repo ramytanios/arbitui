@@ -1,6 +1,13 @@
 Body {
+    margin: 1;
     layout: grid;
     grid-size: 2 2;
+    grid-gutter: 1 1;
+}
+
+RatesConventions {
+    layout: grid;
+    grid-size: 3 1;
 }
 
 .box {

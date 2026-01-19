@@ -10,7 +10,8 @@ from textual import log
 from textual.app import App, ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Footer, Header
+from textual.widgets import Footer, Header, Input
+from textual.widgets._button import Button
 from textual.widgets._select import Select
 from textual.widgets._static import Static
 from textual_plotext import PlotextPlot
@@ -94,7 +95,7 @@ class State:
         )
 
 
-class RatesConventions(Widget):
+class RatesConventions(Widget, can_focus=True):
     DEFAULT_CLASSES = "box"
     BORDER_TITLE = "Rates & Conventions"
 
@@ -103,22 +104,29 @@ class RatesConventions(Widget):
     conventions: reactive[Optional[Conventions]] = reactive(None)
 
     def compose(self) -> ComposeResult:
-        if self.rates:
-            yield Select(
-                list(self.rates.libor_rates.items()),
-                value=0,
-                allow_blank=False,
-                compact=True,
+        if self.rates is not None and self.conventions is not None:
+            saved_libor = self.rates.libor_rates.get(
+                self.conventions.conventions.libor[0],
             )
-            yield Select(
-                list(self.rates.swap_rates.items()),
-                value=0,
-                allow_blank=False,
-                compact=True,
+            saved_swap = self.rates.swap_rates.get(
+                self.conventions.conventions.swap[0],
             )
+            if saved_libor is not None and saved_swap is not None:
+                yield Select(
+                    list(self.rates.libor_rates.items()),
+                    value=saved_libor,
+                    allow_blank=False,
+                    compact=True,
+                )
+                yield Select(
+                    list(self.rates.swap_rates.items()),
+                    value=saved_swap,
+                    allow_blank=False,
+                    compact=True,
+                )
 
 
-class VolaSkewChart(Widget):
+class VolaSkewChart(Widget, can_focus=True):
     DEFAULT_CLASSES = "box"
     BORDER_TITLE = "Volatility Smile"
 
@@ -139,7 +147,7 @@ class VolaSkewChart(Widget):
             plt.scatter(qks, qpdf, marker="o", color="orange")
 
 
-class ArbitrageMatrix(Widget):
+class ArbitrageMatrix(Widget, can_focus=True):
     DEFAULT_CLASSES = "box"
     BORDER_TITLE = "Arbitrage Matrix"
 
@@ -149,7 +157,23 @@ class ArbitrageMatrix(Widget):
         yield Static("TODO")
 
 
-class DensityChart(Widget):
+class FileInput(Input):
+    def on_mount(self) -> None:
+        self.cursor_blink = True
+        self.compact = True
+
+
+class FileLoadButton(Button, can_focus=False):
+    pass
+
+
+class FileBar(Widget):
+    def compose(self) -> ComposeResult:
+        yield FileInput(placeholder="Enter filename", id="file-input")
+        yield FileLoadButton(label="Load", compact=True, id="file-load")
+
+
+class DensityChart(Widget, can_focus=True):
     DEFAULT_CLASSES = "box"
     BORDER_TITLE = "Implied Probability Density"
 
@@ -174,6 +198,7 @@ class Body(Widget):
     state: reactive[Optional[State]] = reactive(None)
 
     def compose(self) -> ComposeResult:
+        yield FileBar()
         yield RatesConventions()
         yield VolaSkewChart()
         yield ArbitrageMatrix()

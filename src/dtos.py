@@ -215,8 +215,8 @@ class SwapRateConventions(Dto):
 
 
 class VolatilityMarketConventions(Dto):
-    libor: LiborConventions
-    swap: SwapRateConventions
+    libor: Tuple[str, LiborConventions]
+    swap: Tuple[str, SwapRateConventions]
     boundary_tenor: str
 
 

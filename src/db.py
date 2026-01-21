@@ -150,7 +150,7 @@ async def get_swap_rates(ccy: str, ctx: Context) -> Dict[str, dtos.SwapRate]:
 
 
 GET_CONVENTIONS_QUERY = """
-    SELECT vc.boundary_tenor, r1.js AS libor_js, r2.js AS swap_js 
+    SELECT vc.boundary_tenor, r1.name AS libor_name, r1.js AS libor_js, r2.name AS swap_name, r2.js AS swap_js 
     FROM vol_conventions AS vc
     JOIN rate AS r1 ON vc.currency = r1.currency AND vc.libor_rate = r1.name
     JOIN rate AS r2 ON vc.currency = r2.currency AND vc.swap_rate = r2.name
@@ -168,10 +168,14 @@ async def get_conventions(ccy: str, ctx: Context) -> dtos.VolatilityMarketConven
                 if not row:
                     raise ValueError(f"Can't find {ccy} conventions")
 
-                libor = dtos.Libor.model_validate_json(row["libor_js"]).to_conventions()
-                swap_rate = dtos.SwapRate.model_validate_json(
-                    row["swap_js"]
-                ).to_conventions()
+                libor = (
+                    str(row["libor_name"]),
+                    dtos.Libor.model_validate_json(row["libor_js"]).to_conventions(),
+                )
+                swap_rate = (
+                    str(row["swap_name"]),
+                    dtos.SwapRate.model_validate_json(row["swap_js"]).to_conventions(),
+                )
                 boundary_tenor = str(row["boundary_tenor"])
 
                 return dtos.VolatilityMarketConventions(

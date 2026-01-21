@@ -1,6 +1,8 @@
+import json
 from asyncio.queues import Queue
 from asyncio.taskgroups import TaskGroup
 from datetime import datetime
+from json.decoder import JSONDecodeError
 from pathlib import Path
 from typing import AsyncGenerator, Tuple
 
@@ -24,10 +26,14 @@ from message import (
     GetFullArbitrageCheck,
     GetRates,
     GetVolSamples,
+    LoadCube,
+    Notification,
     Ping,
     Pong,
     Rates,
     ServerMsg,
+    Severity,
+    VolaCube,
     VolSamples,
     client_msg_adapter,
     server_msg_adapter,
@@ -72,26 +78,64 @@ async def websocket_endpoint(ws: WebSocket):
                 logger.exception(f"exception in send loop: {e}")
                 raise
 
+    async def _get_conventions(ccy: str) -> Conventions:
+        conventions = await db.get_conventions(ccy, ctx)
+        return Conventions(currency=ccy, conventions=conventions)
+
+    async def _get_rates(ccy: str) -> Rates:
+        libor_rates = await db.get_libor_rates(ccy, ctx)
+        swap_rates = await db.get_swap_rates(ccy, ctx)
+        return Rates(currency=ccy, libor_rates=libor_rates, swap_rates=swap_rates)
+
     async def handle_client_msg(msg: ClientMsg):
         match msg:
             case Ping():
                 logger.info("ping received")
                 await q_out.put(Pong())
 
+            case LoadCube(file_path=path):
+                try:
+                    with open(path) as js:
+                        cube_js = json.load(js)
+                        ccy = cube_js["currency"]
+                        cube = dtos.VolatilityCube.model_validate(cube_js["data"])
+                        msg_out = VolaCube(currency=ccy, cube=cube)
+                        await q_out.put(msg_out)
+                        # automatically send the corresponding
+                        # conventions and rates
+                        conventions = await _get_conventions(ccy)
+                        rates = await _get_rates(ccy)
+                        await q_out.put(conventions)
+                        await q_out.put(rates)
+                except ValidationError:
+                    error_msg = f"failed to validate json in {path}"
+                    logger.exception(error_msg)
+                    await q_out.put(
+                        Notification(msg=error_msg, severity=Severity.ERROR)
+                    )
+                except JSONDecodeError:
+                    error_msg = f"failed to decode json in {path}"
+                    logger.exception(error_msg)
+                    await q_out.put(
+                        Notification(msg=error_msg, severity=Severity.ERROR)
+                    )
+                except Exception:
+                    error_msg = f"failed to load {path}"
+                    logger.exception(error_msg)
+                    await q_out.put(
+                        Notification(msg=error_msg, severity=Severity.ERROR)
+                    )
+
             case GetConventions(currency=ccy):
                 try:
-                    conventions = await db.get_conventions(ccy, ctx)
-                    await q_out.put(Conventions(currency=ccy, conventions=conventions))
+                    msg_out = await _get_conventions(ccy)
+                    await q_out.put(msg_out)
                 except Exception as e:
                     logger.exception(f"failed to handle conventions request: {e}")
 
             case GetRates(currency=ccy):
                 try:
-                    libor_rates = await db.get_libor_rates(ccy, ctx)
-                    swap_rates = await db.get_swap_rates(ccy, ctx)
-                    msg_out = Rates(
-                        currency=ccy, libor_rates=libor_rates, swap_rates=swap_rates
-                    )
+                    msg_out = await _get_rates(ccy)
                     await q_out.put(msg_out)
                 except Exception as e:
                     logger.exception(f"failed to handle rates request: {e}")

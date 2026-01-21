@@ -4,11 +4,13 @@ fmt:
 repl:
     PYTHONPATH=src uv run --with pydantic python
 
+[working-directory('src')]
 run-server:
-    PYTHONPATH=src uv run uvicorn server:app
+    uv run uvicorn server:app
 
+[working-directory('src')]
 console-tui:
-    PYTHONPATH=src uv run textual console
+    uv run textual console
 
 [working-directory('src')]
 run-tui:

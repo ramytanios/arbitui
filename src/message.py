@@ -1,13 +1,19 @@
-from pydantic.type_adapter import TypeAdapter
+from enum import Enum
 from typing import Annotated, Literal, Tuple, Union
 
 from pydantic import BaseModel, Field
+from pydantic.type_adapter import TypeAdapter
 
 import dtos
 
 
 class Ping(BaseModel):
     type: Literal["ping"] = "ping"
+
+
+class LoadCube(BaseModel):
+    file_path: str
+    type: Literal["load_cube"] = "load_cube"
 
 
 class GetConventions(BaseModel):
@@ -45,6 +51,7 @@ class GetVolSamples(BaseModel):
 type ClientMsg = Annotated[
     Union[
         Ping,
+        LoadCube,
         GetConventions,
         GetRates,
         GetFullArbitrageCheck,
@@ -57,6 +64,12 @@ type ClientMsg = Annotated[
 
 class Pong(BaseModel):
     type: Literal["pong"] = "pong"
+
+
+class VolaCube(BaseModel):
+    currency: str
+    cube: dtos.VolatilityCube
+    type: Literal["vola_cube"] = "vola_cube"
 
 
 class Conventions(BaseModel):
@@ -94,8 +107,29 @@ class VolSamples(BaseModel):
     type: Literal["vol_samples"] = "vol_samples"
 
 
+class Severity(Enum):
+    INFORMATION = "information"
+    ERROR = "error"
+    WARNING = "warning"
+
+
+class Notification(BaseModel):
+    msg: str
+    severity: Severity
+    type: Literal["notification"] = "notification"
+
+
 type ServerMsg = Annotated[
-    Union[Pong, Conventions, Rates, FullArbitrageCheck, ArbitrageCheck, VolSamples],
+    Union[
+        Pong,
+        VolaCube,
+        Conventions,
+        Rates,
+        FullArbitrageCheck,
+        ArbitrageCheck,
+        VolSamples,
+        Notification,
+    ],
     Field(discriminator="type"),
 ]
 

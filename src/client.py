@@ -6,13 +6,13 @@ from typing import Callable, Optional
 
 import websockets
 from pydantic import ValidationError
+from rich.text import Text
 from textual import log
 from textual.app import App, ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Footer, Header, Input
-from textual.widgets._button import Button
-from textual.widgets._select import Select
+from textual.widgets import Footer, Header
+from textual.widgets._data_table import DataTable
 from textual.widgets._static import Static
 from textual_plotext import PlotextPlot
 
@@ -20,18 +20,23 @@ from message import (
     ClientMsg,
     Conventions,
     FullArbitrageCheck,
+    LoadCube,
+    Notification,
     Ping,
     Pong,
     Rates,
     ServerMsg,
+    Severity,
+    VolaCube,
     VolSamples,
     client_msg_adapter,
     server_msg_adapter,
 )
+from widgets import ASelect, FileBar, FileInput
 
 
 async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
-    async with websockets.connect("ws://127.0.0.1:8090/api/ws") as ws:
+    async with websockets.connect("ws://localhost:8000/ws") as ws:
 
         async def send_heartbeat():
             while True:
@@ -46,7 +51,7 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
             while True:
                 try:
                     msg = await q_out.get()
-                    await ws.send(client_msg_adapter.dump_json(msg))
+                    await ws.send(client_msg_adapter.dump_json(msg), text=True)
                     log.info(f"sent ws message: {msg}")
                 except Exception as e:
                     e.add_note(f"send loop failed: {e}")
@@ -74,56 +79,58 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
 
 @dataclass
 class State:
+    cube: Optional[VolaCube] = None
     rates: Optional[Rates] = None
     conventions: Optional[Conventions] = None
     matrix: Optional[FullArbitrageCheck] = None
     samples: Optional[VolSamples] = None
 
-    def modify(
-        self,
-        rates: Optional[Rates] = None,
-        conventions: Optional[Conventions] = None,
-        matrix: Optional[FullArbitrageCheck] = None,
-        samples: Optional[VolSamples] = None,
-    ):
-        return replace(
-            self,
-            rates=rates,
-            conventions=conventions,
-            matrix=matrix,
-            samples=samples,
-        )
-
 
 class RatesConventions(Widget, can_focus=True):
-    DEFAULT_CLASSES = "box"
+    DEFAULT_CLASSES = "box conventions-grid"
     BORDER_TITLE = "Rates & Conventions"
 
-    rates: reactive[Optional[Rates]] = reactive(None)
+    rates: reactive[Optional[Rates]] = reactive(None, recompose=True)
 
-    conventions: reactive[Optional[Conventions]] = reactive(None)
+    conventions: reactive[Optional[Conventions]] = reactive(None, recompose=True)
+
+    def populate_libor_table(self):
+        if self.conventions:
+            libor_table = self.query_one("#libor", DataTable)
+            libor = self.conventions.conventions.libor[1]
+            libor_table.add_columns("data", "value")
+            dikt = libor.model_dump(mode="json")
+            dikt["reset_curve"] = dikt["reset_curve"]["name"]
+            for row in dikt.items():
+                styled_row = (Text(str(row[0]), style="italic"), row[1])
+                libor_table.add_row(*styled_row)
+
+    def populate_swap_table(self):
+        if self.conventions:
+            swap_table = self.query_one("#swap", DataTable)
+            swap = self.conventions.conventions.swap[1]
+            swap_table.add_columns("data", "value")
+            dikt = swap.model_dump(mode="json")
+            dikt["discount_curve"] = dikt["discount_curve"]["name"]
+            for row in dikt.items():
+                styled_row = (Text(str(row[0]), style="italic"), row[1])
+                swap_table.add_row(*styled_row)
 
     def compose(self) -> ComposeResult:
         if self.rates is not None and self.conventions is not None:
-            saved_libor = self.rates.libor_rates.get(
-                self.conventions.conventions.libor[0],
+            yield ASelect(
+                options=[(k, k) for k in self.rates.libor_rates.keys()],
+                value=self.conventions.conventions.libor[0],
             )
-            saved_swap = self.rates.swap_rates.get(
-                self.conventions.conventions.swap[0],
+            yield ASelect(
+                options=[(k, k) for k in self.rates.swap_rates.keys()],
+                value=self.conventions.conventions.swap[0],
             )
-            if saved_libor is not None and saved_swap is not None:
-                yield Select(
-                    list(self.rates.libor_rates.items()),
-                    value=saved_libor,
-                    allow_blank=False,
-                    compact=True,
-                )
-                yield Select(
-                    list(self.rates.swap_rates.items()),
-                    value=saved_swap,
-                    allow_blank=False,
-                    compact=True,
-                )
+            yield DataTable(id="libor", show_header=False)
+            yield DataTable(id="swap", show_header=False)
+
+        self.call_later(self.populate_libor_table)
+        self.call_later(self.populate_swap_table)
 
 
 class VolaSkewChart(Widget, can_focus=True):
@@ -155,22 +162,6 @@ class ArbitrageMatrix(Widget, can_focus=True):
 
     def compose(self) -> ComposeResult:
         yield Static("TODO")
-
-
-class FileInput(Input):
-    def on_mount(self) -> None:
-        self.cursor_blink = True
-        self.compact = True
-
-
-class FileLoadButton(Button, can_focus=False):
-    pass
-
-
-class FileBar(Widget):
-    def compose(self) -> ComposeResult:
-        yield FileInput(placeholder="Enter filename", id="file-input")
-        yield FileLoadButton(label="Load", compact=True, id="file-load")
 
 
 class DensityChart(Widget, can_focus=True):
@@ -207,6 +198,7 @@ class Body(Widget):
     def watch_state(self, state: State) -> None:
         if not state:
             return
+
         self.query_one(RatesConventions).rates = state.rates
         self.query_one(RatesConventions).conventions = state.conventions
         self.query_one(VolaSkewChart).samples = state.samples
@@ -243,34 +235,48 @@ class Arbitui(App):
 
     async def on_mount(self) -> None:
         self.theme = self.THEME_DARK
-        self.run_worker(ws_async(self.q_in, self.q_out), exit_on_error=False)
-        self.run_worker(self.recv_loop(), exit_on_error=False)
-        self.run_worker(self.state_updates_loop(), exit_on_error=False)
+        self.run_worker(ws_async(self.q_in, self.q_out))
+        self.run_worker(self.recv_loop())
+        self.run_worker(self.state_updates_loop())
 
     async def recv_loop(self):
         while True:
             try:
                 msg = await self.q_in.get()
-                self.handle_server_msg(msg)
+                await self.handle_server_msg(msg)
             except Exception:
                 log.error("exception in receive loop: {e}")
 
-    def handle_server_msg(self, msg: ServerMsg):
+    async def handle_server_msg(self, msg: ServerMsg):
         match msg:
             case Pong():
                 log.info("pong received")
             case Rates() as rates:
                 log.info("updating rates state")
-                self.update_state(lambda s: s.modify(rates=rates))
+                self.update_state(lambda s: replace(s, rates=rates))
             case Conventions() as conventions:
                 log.info("updating conventions state")
-                self.update_state(lambda s: s.modify(conventions=conventions))
+                self.update_state(lambda s: replace(s, conventions=conventions))
             case FullArbitrageCheck() as matrix:
                 log.info("updating arbitrage matrix state")
-                self.update_state(lambda s: s.modify(matrix=matrix))
+                self.update_state(lambda s: replace(s, matrix=matrix))
             case VolSamples() as samples:
                 log.info("updating vol samples state")
-                self.update_state(lambda s: s.modify(samples=samples))
+                self.update_state(lambda s: replace(s, samples=samples))
+            case VolaCube() as cube:
+                log.info(f"received vol cube currency {cube.currency}")
+                self.update_state(lambda s: replace(s, cube=cube))
+            case Notification(msg=msg, severity=severity):
+                s = None
+                match severity:
+                    case Severity.ERROR:
+                        s = "error"
+                    case Severity.WARNING:
+                        s = "warning"
+                    case Severity.INFORMATION:
+                        s = "information"
+                if s:
+                    self.notify(message=msg, severity=s)
 
     async def state_updates_loop(self):
         while True:
@@ -289,6 +295,12 @@ class Arbitui(App):
         yield Header(show_clock=True)
         yield Body().data_bind(Arbitui.state)
         yield Footer()
+
+    async def on_file_input_filename(self, event: FileInput.Filename) -> None:
+        try:
+            await self.q_out.put(LoadCube(file_path=event.path))
+        except Exception as e:
+            self.notify(message=f"failed to handle fileinput event {e}")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
 Body {
-    margin: 1;
-    layout: grid;
-    grid-size: 2 3;
-    grid-rows: 1fr 1fr 1fr;
+  margin: 1;
+  layout: grid;
+  grid-size: 2 3;
+  grid-rows: 1 1fr 1fr;
+  grid-gutter: 1 1;
 }
 
 FileBar {
@@ -11,6 +12,16 @@ FileBar {
   grid-size: 6;
   grid-gutter: 0 1;
   margin: 0 1;
+  height: auto;
+  align: center middle;
+}
+
+.conventions-grid {
+  layout: grid;
+  grid-size: 2 3;
+  grid-rows: 1 1fr 1;
+  grid-gutter: 1 1;
+  border: round green;
 }
 
 #file-input {
@@ -18,15 +29,18 @@ FileBar {
 }
     
 #load-btn {
- column-span: 1;
+  column-span: 1;
 }
 
 RatesConventions {
-    layout: grid;
-    grid-size: 3 1;
+  layout: grid;
+  grid-size: 3 1;
+  &:focus {
+    border: round $warning;
+  }
 }
 
 .box {
-    height: 100%;
-    border: round green;
+  height: 100%;
+  border: round green;
 }

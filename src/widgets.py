@@ -76,7 +76,7 @@ class FileBar(Widget):
         self.path_autocomplete = PathAutoComplete(target=input)
         self.screen.mount(self.path_autocomplete)
 
-    version = "v0.0.1"  # TODO move to Settings
+    version = "v0.0.1"
 
     def compose(self) -> ComposeResult:
         yield Label(f"[green][b]Arbitui [dim]{self.version}[/][/][/]", id="app-title")

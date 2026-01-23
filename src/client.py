@@ -12,10 +12,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Footer, Header
-from textual.widgets._data_table import DataTable
-from textual.widgets._select import Select
-from textual.widgets._static import Static
+from textual.widgets import DataTable, Footer, Header, Label, Select, Static
 from textual_plotext import PlotextPlot
 
 from message import (
@@ -101,7 +98,7 @@ class RatesConventions(Widget, can_focus=True):
         if self.rates is not None and self.selected_libor is not None:
             libor = self.rates.libor_rates.get(self.selected_libor)
             if libor is not None:
-                libor_table = self.query_one("#libor", DataTable)
+                libor_table = self.query_one("#libor-table", DataTable)
                 libor_table.clear()
                 libor_table.add_columns("data", "value")
                 dikt = libor.to_conventions().model_dump(mode="json")
@@ -114,7 +111,7 @@ class RatesConventions(Widget, can_focus=True):
         if self.rates is not None and self.selected_swap is not None:
             swap = self.rates.swap_rates.get(self.selected_swap)
             if swap is not None:
-                swap_table = self.query_one("#swap", DataTable)
+                swap_table = self.query_one("#swap-table", DataTable)
                 swap_table.clear()
                 swap_table.add_columns("data", "value")
                 dikt = swap.to_conventions().model_dump(mode="json")
@@ -141,8 +138,16 @@ class RatesConventions(Widget, can_focus=True):
                 id="swap-select",
                 allow_blank=False,
             )
-            yield DataTable(id="libor", show_header=False)
-            yield DataTable(id="swap", show_header=False)
+            yield Label(
+                f"[b]Libor Convention:[/] {self.conventions.conventions.libor[0]}",
+                classes="bg-green",
+            )
+            yield Label(
+                f"[b]Swap Convention:[/] {self.conventions.conventions.swap[0]}",
+                classes="bg-green",
+            )
+            yield DataTable(id="libor-table", show_header=False)
+            yield DataTable(id="swap-table", show_header=False)
         # self.call_later(self.populate_tables)
 
     @on(Select.Changed, "#libor-select")

@@ -3,7 +3,6 @@ from asyncio.queues import Queue
 from asyncio.taskgroups import TaskGroup
 from datetime import datetime
 from json.decoder import JSONDecodeError
-from pathlib import Path
 from typing import AsyncGenerator, Tuple
 
 import aiohttp
@@ -38,6 +37,7 @@ from message import (
     client_msg_adapter,
     server_msg_adapter,
 )
+from settings import settings
 
 
 async def websocket_endpoint(ws: WebSocket):
@@ -46,11 +46,9 @@ async def websocket_endpoint(ws: WebSocket):
     q_in = Queue[ClientMsg]()
     q_out = Queue[ServerMsg]()
 
-    rpc_url = "http://localhost:8090/rpc"
+    rpc_url = settings.rpc_url
 
-    path = Path.home() / ".local" / "share" / "arbitui" / "arbitui.db"
-
-    ctx = db.Context(path)
+    ctx = db.Context(settings.home / "arbitui.db")
 
     logger.info("initializing database ..")
     await db.init_db(ctx)

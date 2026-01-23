@@ -18,8 +18,8 @@ FileBar {
 .conventions-grid {
   layout: grid;
   grid-size: 2 3;
-  grid-rows: 1 1fr 1;
-  grid-gutter: 1 1;
+  grid-rows: 1 1 1fr;
+  grid-gutter: 0 1;
 }
 
 #file-input {
@@ -45,4 +45,8 @@ RatesConventions {
 .box {
   height: 100%;
   border: round green;
+}
+
+.bg-green {
+  background: green;
 }

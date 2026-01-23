@@ -18,17 +18,17 @@ class Handler:
         libor_conventions = vol_conventions.libor
         swap_conventions = vol_conventions.swap
         floating_rate = (await db.get_libor_rates(ccy, self._db_ctx))[
-            swap_conventions.floating_rate
+            swap_conventions[1].floating_rate
         ]
 
         rates = {}
-        rates[swap_conventions.floating_rate] = floating_rate
+        rates[swap_conventions[1].floating_rate] = floating_rate
 
         curves = {}
-        curves[libor_conventions.reset_curve.name] = dtos.ContinuousCompounding(
+        curves[libor_conventions[1].reset_curve.name] = dtos.ContinuousCompounding(
             rate=0.9
         )
-        curves[swap_conventions.discount_curve.name] = dtos.ContinuousCompounding(
+        curves[swap_conventions[1].discount_curve.name] = dtos.ContinuousCompounding(
             rate=0.9
         )
         curves[floating_rate.reset_curve.name] = dtos.ContinuousCompounding(rate=0.9)
@@ -45,8 +45,8 @@ class Handler:
         )
 
         calendars = {}
-        calendars[libor_conventions.calendar] = dtos.Calendar(holidays=[])
-        calendars[swap_conventions.calendar] = dtos.Calendar(holidays=[])
+        calendars[libor_conventions[1].calendar] = dtos.Calendar(holidays=[])
+        calendars[swap_conventions[1].calendar] = dtos.Calendar(holidays=[])
         calendars[floating_rate.calendar] = dtos.Calendar(holidays=[])
 
         static = dtos.Static(calendars=calendars)

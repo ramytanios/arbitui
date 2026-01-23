@@ -79,5 +79,5 @@ class FileBar(Widget):
     version = "v0.0.1"
 
     def compose(self) -> ComposeResult:
-        yield Label(f"[green][b]Arbitui [dim]{self.version}[/][/][/]", id="app-title")
+        yield Label(f"[$primary][b]Arbitui [dim]{self.version}[/][/][/]", id="app-title")
         yield FileInput(placeholder="Enter filename", id="file-input")

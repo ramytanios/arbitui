@@ -9,16 +9,15 @@ from pydantic import ValidationError
 from rich.text import Text
 from textual import log, on
 from textual.app import App, ComposeResult
-from textual.binding import Binding
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Label, Select, Static
 from textual_plotext import PlotextPlot
 
 from message import (
+    ArbitrageMatrix,
     ClientMsg,
     Conventions,
-    FullArbitrageCheck,
     LoadCube,
     Notification,
     Ping,
@@ -31,6 +30,7 @@ from message import (
     client_msg_adapter,
     server_msg_adapter,
 )
+from theme import rates_terminal_theme
 from widgets import FileBar, FileInput, RateSelect
 
 
@@ -81,7 +81,7 @@ class State:
     cube: Optional[VolaCube] = None
     rates: Optional[Rates] = None
     conventions: Optional[Conventions] = None
-    matrix: Optional[FullArbitrageCheck] = None
+    matrix: Optional[ArbitrageMatrix] = None
     samples: Optional[VolSamples] = None
 
 
@@ -138,16 +138,14 @@ class RatesConventions(Widget, can_focus=True):
                 id="swap-select",
                 allow_blank=False,
             )
-            yield Label(
-                f"[b]Libor Convention:[/] {self.conventions.conventions.libor[0]}",
-                classes="bg-green",
-            )
-            yield Label(
-                f"[b]Swap Convention:[/] {self.conventions.conventions.swap[0]}",
-                classes="bg-green",
-            )
             yield DataTable(id="libor-table", show_header=False)
             yield DataTable(id="swap-table", show_header=False)
+            yield Label(
+                f"[b $primary]●[dim] Libor Convention:[/] {self.conventions.conventions.libor[0]}[/]",
+            )
+            yield Label(
+                f"[b $primary]●[dim] Swap Convention:[/] {self.conventions.conventions.swap[0]}[/]",
+            )
         # self.call_later(self.populate_tables)
 
     @on(Select.Changed, "#libor-select")
@@ -182,11 +180,11 @@ class VolaSkewChart(Widget, can_focus=True):
             plt.scatter(qks, qpdf, marker="o", color="orange")
 
 
-class ArbitrageMatrix(Widget, can_focus=True):
+class ArbitrageGrid(Widget, can_focus=True):
     DEFAULT_CLASSES = "box"
     BORDER_TITLE = "Arbitrage Matrix"
 
-    matrix: reactive[Optional[FullArbitrageCheck]] = reactive(None)
+    matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None)
 
     def compose(self) -> ComposeResult:
         yield Static("TODO")
@@ -220,7 +218,7 @@ class Body(Widget):
         yield FileBar()
         yield RatesConventions()
         yield VolaSkewChart()
-        yield ArbitrageMatrix()
+        yield ArbitrageGrid()
         yield DensityChart()
 
     def watch_state(self, state: State) -> None:
@@ -230,18 +228,12 @@ class Body(Widget):
         self.query_one(RatesConventions).rates = state.rates
         self.query_one(RatesConventions).conventions = state.conventions
         self.query_one(VolaSkewChart).samples = state.samples
-        self.query_one(ArbitrageMatrix).matrix = state.matrix
+        self.query_one(ArbitrageGrid).matrix = state.matrix
         self.query_one(DensityChart).samples = state.samples
 
 
 class Arbitui(App):
-    BINDINGS = [
-        Binding("d", "toggle_dark", "Toggle dark mode"),
-    ]
     CSS_PATH = "styles.tcss"
-
-    THEME_LIGHT = "catppuccin-latte"
-    THEME_DARK = "catppuccin-mocha"
 
     TITLE = "Arbitui"
     SUB_TITLE = "IR Volatility Manager"
@@ -259,10 +251,11 @@ class Arbitui(App):
             log.error(f"state update Q is full: {e}")
 
     async def on_mount(self) -> None:
-        self.theme = self.THEME_DARK
         self.run_worker(ws_async(self.q_in, self.q_out))
         self.run_worker(self.recv_loop())
         self.run_worker(self.state_updates_loop())
+        self.register_theme(rates_terminal_theme)
+        self.theme = "rates-terminal"
 
     async def recv_loop(self):
         while True:
@@ -282,7 +275,7 @@ class Arbitui(App):
             case Conventions() as conventions:
                 log.info("updating conventions state")
                 self.update_state(lambda s: replace(s, conventions=conventions))
-            case FullArbitrageCheck() as matrix:
+            case ArbitrageMatrix() as matrix:
                 log.info("updating arbitrage matrix state")
                 self.update_state(lambda s: replace(s, matrix=matrix))
             case VolSamples() as samples:
@@ -310,11 +303,6 @@ class Arbitui(App):
                 self.state = fn(self.state)
             except Exception as e:
                 log.error(f"state update failed: {e}")
-
-    def action_toggle_dark(self) -> None:
-        self.theme = (
-            self.THEME_LIGHT if self.theme == self.THEME_DARK else self.THEME_DARK
-        )
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)

@@ -26,10 +26,10 @@ class GetRates(BaseModel):
     type: Literal["get_rates"] = "get_rates"
 
 
-class GetFullArbitrageCheck(BaseModel):
+class GetArbitrageMatrix(BaseModel):
     currency: str
     vol_cube: dtos.VolatilityCube
-    type: Literal["get_full_arbitrage_check"] = "get_full_arbitrage_check"
+    type: Literal["get_arbitrage_matrix"] = "get_arbitrage_matrix"
 
 
 class GetArbitrageCheck(BaseModel):
@@ -54,7 +54,7 @@ type ClientMsg = Annotated[
         LoadCube,
         GetConventions,
         GetRates,
-        GetFullArbitrageCheck,
+        GetArbitrageMatrix,
         GetArbitrageCheck,
         GetVolSamples,
     ],
@@ -85,10 +85,10 @@ class Rates(BaseModel):
     type: Literal["rates"] = "rates"
 
 
-class FullArbitrageCheck(BaseModel):
+class ArbitrageMatrix(BaseModel):
     currency: str
-    checks: dict[Tuple[str, str], dtos.ArbitrageCheck]
-    type: Literal["full_arbitrage_check"] = "full_arbitrage_check"
+    matrix: dict[Tuple[str, str], dtos.ArbitrageCheck]
+    type: Literal["arbitrage_matrix"] = "arbitrage_matrix"
 
 
 class ArbitrageCheck(BaseModel):
@@ -125,7 +125,7 @@ type ServerMsg = Annotated[
         VolaCube,
         Conventions,
         Rates,
-        FullArbitrageCheck,
+        ArbitrageMatrix,
         ArbitrageCheck,
         VolSamples,
         Notification,

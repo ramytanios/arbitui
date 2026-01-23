@@ -1,15 +1,20 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from anyio._core._fileio import Path
 from textual import on
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.message import Message
 from textual.suggester import Suggester
 from textual.widget import Widget
-from textual.widgets import Button, Input, Select
+from textual.widgets import Button, Input, Label, Select
+from textual.widgets._select import SelectOverlay
+from textual_autocomplete import PathAutoComplete
 
 
-class ASuggester(Suggester):
+class _Suggester(Suggester):
     async def get_suggestion(self, value: str) -> str | None:
         try:
             return str(await anext(Path().glob(f"{value}*")))
@@ -17,34 +22,62 @@ class ASuggester(Suggester):
             return None
 
 
-class AInput(Input):
+class _Input(Input):
     def on_mount(self) -> None:
         self.cursor_blink = True
         self.compact = True
-        self.suggester = ASuggester()
+        self.suggester = _Suggester()
 
 
-class FileInput(AInput):
+class FileInput(_Input):
     @dataclass
-    class Filename(Message):
+    class FileChanged(Message):
         path: str
 
     @on(Input.Submitted)
     def on_submit(self, event: Input.Submitted) -> None:
-        self.post_message(self.Filename(event.value))
+        self.post_message(self.FileChanged(event.value))
 
 
-class AButton(Button, can_focus=False):
+class _Button(Button, can_focus=False):
     pass
 
 
-class ASelect(Select, can_focus=True):
+class RateSelect(Select, can_focus=True, inherit_bindings=False):
+    BINDINGS = [
+        Binding("enter,space,l", "show_overlay", "Show Overlay", show=True),
+        Binding("up,k", "cursor_up", "Cursor Up", show=True),
+        Binding("down,j", "cursor_down", "Cursor Down", show=True),
+    ]
+
     def on_mount(self) -> None:
-        self._allow_blank = True
         self.compact = True
+
+    def action_cursor_up(self):
+        if self.expanded:
+            self.select_overlay.action_cursor_up()
+        else:
+            self.screen.focus_previous()
+
+    def action_cursor_down(self):
+        if self.expanded:
+            self.select_overlay.action_cursor_down()
+        else:
+            self.screen.focus_next()
+
+    @property
+    def select_overlay(self) -> SelectOverlay:
+        return self.query_one(SelectOverlay)
 
 
 class FileBar(Widget):
+    def on_mount(self) -> None:
+        input = self.query_one("#file-input", FileInput)
+        self.path_autocomplete = PathAutoComplete(target=input)
+        self.screen.mount(self.path_autocomplete)
+
+    version = "v0.0.1"  # TODO move to Settings
+
     def compose(self) -> ComposeResult:
+        yield Label(f"[green][b]Arbitui [dim]{self.version}[/][/][/]", id="app-title")
         yield FileInput(placeholder="Enter filename", id="file-input")
-        yield AButton(label="Load", compact=True, id="file-load")

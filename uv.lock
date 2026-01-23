@@ -145,6 +145,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "starlette" },
     { name = "textual" },
+    { name = "textual-autocomplete" },
     { name = "textual-dev" },
     { name = "textual-plotext" },
     { name = "textual-serve" },
@@ -160,6 +161,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "starlette", specifier = ">=0.51.0" },
     { name = "textual", specifier = ">=6.7.1" },
+    { name = "textual-autocomplete", specifier = ">=4.0.6" },
     { name = "textual-dev", specifier = ">=1.8.0" },
     { name = "textual-plotext", specifier = ">=1.0.1" },
     { name = "textual-serve", specifier = ">=1.1.3" },
@@ -735,6 +737,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f4/a6/27187e6a627389631cbf6059abdd54f601890c88970a2e0f8b067da0e14e/textual-7.0.2.tar.gz", hash = "sha256:a2c6b42036e8dbde178536c997a82392f1ab73dac9518543f8ff7206eff881c5", size = 1582161, upload-time = "2026-01-09T12:48:37.583Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9f/13/26d6aee32bf1462408ecb5f64f6c1a3cd0111ec2d5ddd91b034ab9603b82/textual-7.0.2-py3-none-any.whl", hash = "sha256:cb572e5a722bbf90267b5c44ea07846a8bc654e806dd748277c025d56371ebb0", size = 715258, upload-time = "2026-01-09T12:48:35.484Z" },
+]
+
+[[package]]
+name = "textual-autocomplete"
+version = "4.0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "textual" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/3a/80411bc7b94969eb116ad1b18db90f8dce8a1de441278c4a81fee55a27ca/textual_autocomplete-4.0.6.tar.gz", hash = "sha256:2ba2f0d767be4480ecacb3e4b130cf07340e033c3500fc424fed9125d27a4586", size = 97967, upload-time = "2025-09-24T21:19:20.213Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9f/66/ebe744d79c87f25a42d2654dddbd09462edd595f2ded715245a51a546461/textual_autocomplete-4.0.6-py3-none-any.whl", hash = "sha256:bff69c19386e2cbb4a007503b058dc37671d480a4fa2ddb3959c15ceb4aff9b5", size = 16499, upload-time = "2025-09-24T21:19:18.489Z" },
 ]
 
 [[package]]

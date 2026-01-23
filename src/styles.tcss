@@ -12,7 +12,6 @@ FileBar {
   grid-size: 6;
   grid-gutter: 0 1;
   margin: 0 1;
-  height: auto;
   align: center middle;
 }
 
@@ -21,11 +20,14 @@ FileBar {
   grid-size: 2 3;
   grid-rows: 1 1fr 1;
   grid-gutter: 1 1;
-  border: round green;
 }
 
 #file-input {
-  column-span: 5;
+  column-span: 4;
+}
+
+#app-title {
+  column-span: 2;
 }
     
 #load-btn {

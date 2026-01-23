@@ -7,12 +7,14 @@ from typing import Callable, Optional
 import websockets
 from pydantic import ValidationError
 from rich.text import Text
-from textual import log
+from textual import log, on
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Footer, Header
 from textual.widgets._data_table import DataTable
+from textual.widgets._select import Select
 from textual.widgets._static import Static
 from textual_plotext import PlotextPlot
 
@@ -32,7 +34,7 @@ from message import (
     client_msg_adapter,
     server_msg_adapter,
 )
-from widgets import ASelect, FileBar, FileInput
+from widgets import FileBar, FileInput, RateSelect
 
 
 async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
@@ -91,46 +93,67 @@ class RatesConventions(Widget, can_focus=True):
     BORDER_TITLE = "Rates & Conventions"
 
     rates: reactive[Optional[Rates]] = reactive(None, recompose=True)
-
     conventions: reactive[Optional[Conventions]] = reactive(None, recompose=True)
+    selected_libor: reactive[Optional[str]] = reactive(None)
+    selected_swap: reactive[Optional[str]] = reactive(None)
 
-    def populate_libor_table(self):
-        if self.conventions:
-            libor_table = self.query_one("#libor", DataTable)
-            libor = self.conventions.conventions.libor[1]
-            libor_table.add_columns("data", "value")
-            dikt = libor.model_dump(mode="json")
-            dikt["reset_curve"] = dikt["reset_curve"]["name"]
-            for row in dikt.items():
-                styled_row = (Text(str(row[0]), style="italic"), row[1])
-                libor_table.add_row(*styled_row)
+    def fill_libor_table(self):
+        if self.rates is not None and self.selected_libor is not None:
+            libor = self.rates.libor_rates.get(self.selected_libor)
+            if libor is not None:
+                libor_table = self.query_one("#libor", DataTable)
+                libor_table.clear()
+                libor_table.add_columns("data", "value")
+                dikt = libor.to_conventions().model_dump(mode="json")
+                dikt["reset_curve"] = dikt["reset_curve"]["name"]
+                for row in dikt.items():
+                    styled_row = (Text(str(row[0]), style="italic"), row[1])
+                    libor_table.add_row(*styled_row)
 
-    def populate_swap_table(self):
-        if self.conventions:
-            swap_table = self.query_one("#swap", DataTable)
-            swap = self.conventions.conventions.swap[1]
-            swap_table.add_columns("data", "value")
-            dikt = swap.model_dump(mode="json")
-            dikt["discount_curve"] = dikt["discount_curve"]["name"]
-            for row in dikt.items():
-                styled_row = (Text(str(row[0]), style="italic"), row[1])
-                swap_table.add_row(*styled_row)
+    def fill_swap_table(self):
+        if self.rates is not None and self.selected_swap is not None:
+            swap = self.rates.swap_rates.get(self.selected_swap)
+            if swap is not None:
+                swap_table = self.query_one("#swap", DataTable)
+                swap_table.clear()
+                swap_table.add_columns("data", "value")
+                dikt = swap.to_conventions().model_dump(mode="json")
+                dikt["discount_curve"] = dikt["discount_curve"]["name"]
+                for row in dikt.items():
+                    styled_row = (Text(str(row[0]), style="italic"), row[1])
+                    swap_table.add_row(*styled_row)
+
+    def watch_selected_libor(self) -> None:
+        self.fill_libor_table()
+
+    def watch_selected_swap(self) -> None:
+        self.fill_swap_table()
 
     def compose(self) -> ComposeResult:
         if self.rates is not None and self.conventions is not None:
-            yield ASelect(
+            yield RateSelect(
                 options=[(k, k) for k in self.rates.libor_rates.keys()],
-                value=self.conventions.conventions.libor[0],
+                id="libor-select",
+                allow_blank=False,
             )
-            yield ASelect(
+            yield RateSelect(
                 options=[(k, k) for k in self.rates.swap_rates.keys()],
-                value=self.conventions.conventions.swap[0],
+                id="swap-select",
+                allow_blank=False,
             )
             yield DataTable(id="libor", show_header=False)
             yield DataTable(id="swap", show_header=False)
+        # self.call_later(self.populate_tables)
 
-        self.call_later(self.populate_libor_table)
-        self.call_later(self.populate_swap_table)
+    @on(Select.Changed, "#libor-select")
+    def libor_selected(self, event: Select.Changed) -> None:
+        self.log.debug(f"libor selected {event.value}")
+        self.selected_libor = str(event.value)
+
+    @on(Select.Changed, "#swap-select")
+    def swap_selected(self, event: Select.Changed) -> None:
+        self.log.debug(f"swap selected {event.value}")
+        self.selected_swap = str(event.value)
 
 
 class VolaSkewChart(Widget, can_focus=True):
@@ -208,10 +231,7 @@ class Body(Widget):
 
 class Arbitui(App):
     BINDINGS = [
-        ("d", "toggle_dark", "Toggle dark mode"),
-        ("n", "add_node", "Add node"),
-        ("t", "add_task", "Add task"),
-        ("q", "quit", "Quit"),
+        Binding("d", "toggle_dark", "Toggle dark mode"),
     ]
     CSS_PATH = "styles.tcss"
 
@@ -296,7 +316,7 @@ class Arbitui(App):
         yield Body().data_bind(Arbitui.state)
         yield Footer()
 
-    async def on_file_input_filename(self, event: FileInput.Filename) -> None:
+    async def on_file_input_file_changed(self, event: FileInput.FileChanged) -> None:
         try:
             await self.q_out.put(LoadCube(file_path=event.path))
         except Exception as e:

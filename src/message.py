@@ -112,6 +112,17 @@ class Severity(Enum):
     ERROR = "error"
     WARNING = "warning"
 
+    def to_textual(self) -> Literal["error", "warning", "information"]:
+        match self.value:
+            case Severity.ERROR:
+                return "error"
+            case Severity.WARNING:
+                return "warning"
+            case Severity.INFORMATION:
+                return "information"
+            case _:
+                raise
+
 
 class Notification(BaseModel):
     msg: str

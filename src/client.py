@@ -1,4 +1,3 @@
-from widgets import QuotesPlot
 import asyncio
 from asyncio import Queue
 from asyncio.queues import QueueFull
@@ -13,7 +12,6 @@ from textual.app import App, ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Label, Select
-from textual_plotext import PlotextPlot
 
 from message import (
     ArbitrageMatrix,
@@ -25,14 +23,13 @@ from message import (
     Pong,
     Rates,
     ServerMsg,
-    Severity,
     VolaCube,
     VolSamples,
     client_msg_adapter,
     server_msg_adapter,
 )
 from theme import rates_terminal_theme
-from widgets import FileBar, FileInput, RateSelect
+from widgets import FileBar, FileInput, QuotesPlot, RateSelect
 
 
 async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
@@ -125,20 +122,22 @@ class RatesConventions(Widget, can_focus=True):
         self.fill_swap_table()
 
     def compose(self) -> ComposeResult:
-        if self.rates is not None and self.conventions is not None:
+        if (rates := self.rates) is not None and (
+            conventions := self.conventions
+        ) is not None:
             yield RateSelect(
-                options=[(k, k) for k in self.rates.libor_rates.keys()],
+                options=[(k, k) for k in rates.libor_rates.keys()],
                 id="libor-select",
                 allow_blank=False,
             )
             yield RateSelect(
-                options=[(k, k) for k in self.rates.swap_rates.keys()],
+                options=[(k, k) for k in rates.swap_rates.keys()],
                 id="swap-select",
                 allow_blank=False,
             )
             yield DataTable(id="libor-table", show_header=False)
             yield DataTable(id="swap-table", show_header=False)
-            cvs = self.conventions.conventions
+            cvs = conventions.conventions
             yield Label(
                 f"[b $primary]●[dim] Libor Convention:[/] {cvs.libor_rate[0]}[/]"
             )
@@ -164,9 +163,6 @@ class ArbitrageGrid(Widget, can_focus=True):
 
     matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
 
-    def compose(self) -> ComposeResult:
-        yield Label("TODO")
-
 
 class VolaSkewChart(QuotesPlot, can_focus=True):
     BORDER_TITLE = "Volatility Smile"
@@ -191,7 +187,7 @@ class DensityChart(QuotesPlot, can_focus=True):
 
     samples: reactive[Optional[VolSamples]] = reactive(None)
 
-    def replot(self, samples: VolSamples) -> None:
+    def _replot(self, samples: VolSamples) -> None:
         self.plt.clear_data()
         data = samples.samples
         self.plt.plot(data.strikes, data.pdf, marker="braille")
@@ -202,7 +198,7 @@ class DensityChart(QuotesPlot, can_focus=True):
 
     def watch_samples(self, samples: Optional[VolSamples]) -> None:
         if samples:
-            self.replot(samples)
+            self._replot(samples)
 
 
 class Body(Widget):
@@ -279,16 +275,7 @@ class Arbitui(App):
                 log.info(f"received vol cube currency {cube.currency}")
                 self.update_state(lambda s: replace(s, cube=cube))
             case Notification(msg=msg, severity=severity):
-                s = None
-                match severity:
-                    case Severity.ERROR:
-                        s = "error"
-                    case Severity.WARNING:
-                        s = "warning"
-                    case Severity.INFORMATION:
-                        s = "information"
-                if s:
-                    self.notify(message=msg, severity=s)
+                self.notify(message=msg, severity=severity.to_textual())
 
     async def state_updates_loop(self):
         while True:

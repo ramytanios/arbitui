@@ -12,6 +12,7 @@ from textual.widget import Widget
 from textual.widgets import Button, Input, Label, Select
 from textual.widgets._select import SelectOverlay
 from textual_autocomplete import PathAutoComplete
+from textual_plotext.plotext_plot import PlotextPlot
 
 
 class _Suggester(Suggester):
@@ -79,5 +80,17 @@ class FileBar(Widget):
     version = "v0.0.1"
 
     def compose(self) -> ComposeResult:
-        yield Label(f"[$primary][b]Arbitui [dim]{self.version}[/][/][/]", id="app-title")
+        yield Label(
+            f"[$primary][b]Arbitui [dim]{self.version}[/][/][/]", id="app-title"
+        )
         yield FileInput(placeholder="Enter filename", id="file-input")
+
+
+class QuotesPlot(PlotextPlot, can_focus=True):
+    DEFAULT_CLASSES = "box"
+
+    def on_mount(self) -> None:
+        self.plt.xlabel("K")
+
+    def draw_forward(self, fwd: float) -> None:
+        self.plt.vline(fwd, "gray")

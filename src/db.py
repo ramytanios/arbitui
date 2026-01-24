@@ -179,7 +179,7 @@ async def get_conventions(ccy: str, ctx: Context) -> dtos.VolatilityMarketConven
                 boundary_tenor = str(row["boundary_tenor"])
 
                 return dtos.VolatilityMarketConventions(
-                    libor=libor, swap=swap_rate, boundary_tenor=boundary_tenor
+                    libor_rate=libor, swap_rate=swap_rate, boundary_tenor=boundary_tenor
                 )
     except aiosqlite.Error as e:
         logger.error(f"Failed to get conventions for {ccy}: {e}")

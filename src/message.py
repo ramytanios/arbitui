@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Annotated, Literal, Tuple, Union
+from typing import Annotated, List, Literal, Tuple, Union
 
 from pydantic import BaseModel, Field
 from pydantic.type_adapter import TypeAdapter
@@ -87,7 +87,7 @@ class Rates(BaseModel):
 
 class ArbitrageMatrix(BaseModel):
     currency: str
-    matrix: dict[Tuple[str, str], dtos.ArbitrageCheck]
+    matrix: List[Tuple[str, str, dtos.ArbitrageCheck]]
     type: Literal["arbitrage_matrix"] = "arbitrage_matrix"
 
 

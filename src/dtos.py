@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from enum import Enum, auto
 from typing import Literal, Optional, Tuple
 
@@ -214,9 +214,16 @@ class SwapRateConventions(Dto):
     discount_curve: Curve
 
 
+# TODO fix
+class _VolatilityMarketConventions(Dto):
+    libor_rate: LiborConventions
+    swap_rate: SwapRateConventions
+    boundary_tenor: str
+
+
 class VolatilityMarketConventions(Dto):
-    libor: Tuple[str, LiborConventions]
-    swap: Tuple[str, SwapRateConventions]
+    libor_rate: Tuple[str, LiborConventions]
+    swap_rate: Tuple[str, SwapRateConventions]
     boundary_tenor: str
 
 
@@ -225,7 +232,7 @@ class CcyMarket(Dto):
     curves: dict[str, YieldCurve]
     fixings: dict[str, list[Fixing]]
     volatility: VolatilityCube
-    vol_conventions: VolatilityMarketConventions
+    vol_conventions: _VolatilityMarketConventions
 
 
 class Calendar(Dto):
@@ -237,7 +244,7 @@ class Static(Dto):
 
 
 class ArbitrageParams(Dto):
-    t_ref: datetime
+    t_ref: date
     market: dict[str, CcyMarket]
     static: Static
     currency: str
@@ -246,14 +253,15 @@ class ArbitrageParams(Dto):
 
 
 class VolSamplingParams(Dto):
-    t_ref: datetime
+    t_ref: date
     market: dict[str, CcyMarket]
     static: Static
     currency: str
     tenor: str
     expiry: str
-    n_samples: int
-    n_stdvs: int
+    n_samples_middle: int
+    n_samples_tail: int
+    n_stdvs_tail: int
 
 
 class LeftAsymptotic(Dto):
@@ -283,3 +291,4 @@ class VolSampling(Dto):
     strikes: list[float]
     vols: list[float]
     pdf: list[float]
+    fwd: float

@@ -87,7 +87,7 @@ async def websocket_endpoint(ws: WebSocket):
 
     async def get_arbitrage_matrix(ccy: str, vol: dtos.VolatilityCube):
         async with aiohttp.ClientSession() as session:
-            t = datetime.now()
+            t = datetime.now().date()
             handler = Handler(rpc_url, session, ctx)
 
             async def matrix() -> AsyncGenerator[Tuple[str, str, dtos.ArbitrageCheck]]:
@@ -98,13 +98,13 @@ async def websocket_endpoint(ws: WebSocket):
                         )
                         yield (tenor, expiry, check)
 
-            return {(tenor, expiry): check async for tenor, expiry, check in matrix()}
+            return [check async for check in matrix()]
 
     async def get_vol_sampling(
         ccy: str, vol: dtos.VolatilityCube, tenor: str, expiry: str
     ) -> dtos.VolSampling:
         async with aiohttp.ClientSession() as session:
-            t = datetime.now()
+            t = datetime.now().date()
             handler = Handler(rpc_url, session, ctx)
             return await handler.vol_sampling(t, vol, ccy, tenor, expiry)
 
@@ -170,7 +170,7 @@ async def websocket_endpoint(ws: WebSocket):
                         )
                     except Exception:
                         await log_notify_error(
-                            f"failed to return arbitrage check for rate underlying ({tenor},{expiry})"
+                            f"failed to return sampled data for rate underlying ({tenor},{expiry})"
                         )
 
             case GetConventions(currency=ccy):
@@ -200,7 +200,7 @@ async def websocket_endpoint(ws: WebSocket):
             ):
                 async with aiohttp.ClientSession() as session:
                     try:
-                        t = datetime.now()
+                        t = datetime.now().date()
                         handler = Handler(rpc_url, session, ctx)
                         check = await handler.arbitrage_check(
                             t, vol, ccy, tenor, expiry

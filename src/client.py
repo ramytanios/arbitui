@@ -1,3 +1,4 @@
+from widgets import QuotesPlot
 import asyncio
 from asyncio import Queue
 from asyncio.queues import QueueFull
@@ -11,7 +12,7 @@ from textual import log, on
 from textual.app import App, ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import DataTable, Footer, Header, Label, Select, Static
+from textual.widgets import DataTable, Footer, Header, Label, Select
 from textual_plotext import PlotextPlot
 
 from message import (
@@ -43,8 +44,7 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
                     await q_out.put(Ping())
                     await asyncio.sleep(3)
                 except Exception as e:
-                    e.add_note(f"sending heartbeat failed: {e}")
-                    raise
+                    log.error(f"sending heartbeat failed: {e}")
 
         async def send_loop():
             while True:
@@ -53,8 +53,7 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
                     await ws.send(client_msg_adapter.dump_json(msg), text=True)
                     log.info(f"sent ws message: {msg}")
                 except Exception as e:
-                    e.add_note(f"send loop failed: {e}")
-                    raise
+                    log.error(f"send loop failed: {e}")
 
         async def recv_loop():
             while True:
@@ -62,10 +61,9 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
                     msg = await ws.recv()
                     await q_in.put(server_msg_adapter.validate_json(msg))
                 except ValidationError as e:
-                    log.warning(f"failed to decode server message: {e}")
+                    log.error(f"failed to decode server message: {e}")
                 except Exception as e:
-                    e.add_note(f"recv loop failed: {e}")
-                    raise
+                    log.error(f"recv loop failed: {e}")
 
         try:
             async with asyncio.TaskGroup() as tg:
@@ -140,11 +138,12 @@ class RatesConventions(Widget, can_focus=True):
             )
             yield DataTable(id="libor-table", show_header=False)
             yield DataTable(id="swap-table", show_header=False)
+            cvs = self.conventions.conventions
             yield Label(
-                f"[b $primary]●[dim] Libor Convention:[/] {self.conventions.conventions.libor[0]}[/]",
+                f"[b $primary]●[dim] Libor Convention:[/] {cvs.libor_rate[0]}[/]"
             )
             yield Label(
-                f"[b $primary]●[dim] Swap Convention:[/] {self.conventions.conventions.swap[0]}[/]",
+                f"[b $primary]●[dim] Swap Convention:[/] {cvs.swap_rate[0]}[/]",
             )
         # self.call_later(self.populate_tables)
 
@@ -159,56 +158,51 @@ class RatesConventions(Widget, can_focus=True):
         self.selected_swap = str(event.value)
 
 
-class VolaSkewChart(Widget, can_focus=True):
-    DEFAULT_CLASSES = "box"
-    BORDER_TITLE = "Volatility Smile"
-
-    samples: reactive[Optional[VolSamples]] = reactive(None)
-
-    def compose(self) -> ComposeResult:
-        yield PlotextPlot()
-
-    def watch_samples(self, samples: Optional[VolSamples]) -> None:
-        if samples:
-            plt = self.query_one(PlotextPlot).plt
-            plt.cld()
-            ks = samples.samples.strikes
-            pdf = samples.samples.pdf
-            qks = samples.samples.quoted_strikes
-            qpdf = samples.samples.quoted_vols
-            plt.plot(ks, pdf, color="yellow")
-            plt.scatter(qks, qpdf, marker="o", color="orange")
-
-
 class ArbitrageGrid(Widget, can_focus=True):
     DEFAULT_CLASSES = "box"
     BORDER_TITLE = "Arbitrage Matrix"
 
-    matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None)
+    matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
 
     def compose(self) -> ComposeResult:
-        yield Static("TODO")
+        yield Label("TODO")
 
 
-class DensityChart(Widget, can_focus=True):
-    DEFAULT_CLASSES = "box"
+class VolaSkewChart(QuotesPlot, can_focus=True):
+    BORDER_TITLE = "Volatility Smile"
+
+    samples: reactive[Optional[VolSamples]] = reactive(None)
+
+    def _replot(self, samples: VolSamples) -> None:
+        self.plt.clear_data()
+        data = samples.samples
+        self.plt.plot(data.strikes, data.vols, marker="braille")
+        self.plt.scatter(data.quoted_strikes, data.quoted_vols, marker="o")
+        self.draw_forward(data.fwd)
+        self.refresh()
+
+    def watch_samples(self, samples: Optional[VolSamples]) -> None:
+        if samples:
+            self._replot(samples)
+
+
+class DensityChart(QuotesPlot, can_focus=True):
     BORDER_TITLE = "Implied Probability Density"
 
     samples: reactive[Optional[VolSamples]] = reactive(None)
 
-    def compose(self) -> ComposeResult:
-        yield PlotextPlot()
+    def replot(self, samples: VolSamples) -> None:
+        self.plt.clear_data()
+        data = samples.samples
+        self.plt.plot(data.strikes, data.pdf, marker="braille")
+        self.plt.scatter(data.quoted_strikes, data.quoted_pdf, marker="o")
+        self.plt.hline(0.0, "orange")
+        self.draw_forward(data.fwd)
+        self.refresh()
 
     def watch_samples(self, samples: Optional[VolSamples]) -> None:
         if samples:
-            plt = self.query_one(PlotextPlot).plt
-            plt.cld()
-            ks = samples.samples.strikes
-            pdf = samples.samples.pdf
-            qks = samples.samples.quoted_strikes
-            qpdf = samples.samples.quoted_pdf
-            plt.plot(ks, pdf, color="yellow")
-            plt.scatter(qks, qpdf, marker="o", color="orange")
+            self.replot(samples)
 
 
 class Body(Widget):
@@ -228,8 +222,8 @@ class Body(Widget):
         self.query_one(RatesConventions).rates = state.rates
         self.query_one(RatesConventions).conventions = state.conventions
         self.query_one(VolaSkewChart).samples = state.samples
-        self.query_one(ArbitrageGrid).matrix = state.matrix
         self.query_one(DensityChart).samples = state.samples
+        self.query_one(ArbitrageGrid).matrix = state.matrix
 
 
 class Arbitui(App):

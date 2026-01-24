@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 
 from aiohttp import ClientSession
 
@@ -15,8 +15,8 @@ class Handler:
 
     async def _market(self, volCube: dtos.VolatilityCube, ccy: str):
         vol_conventions = await db.get_conventions(ccy, self._db_ctx)
-        libor_conventions = vol_conventions.libor
-        swap_conventions = vol_conventions.swap
+        libor_conventions = vol_conventions.libor_rate
+        swap_conventions = vol_conventions.swap_rate
         floating_rate = (await db.get_libor_rates(ccy, self._db_ctx))[
             swap_conventions[1].floating_rate
         ]
@@ -41,7 +41,11 @@ class Handler:
             curves=curves,
             fixings=fixings,
             volatility=volCube,
-            vol_conventions=vol_conventions,
+            vol_conventions=dtos._VolatilityMarketConventions(
+                libor_rate=vol_conventions.libor_rate[1],
+                swap_rate=vol_conventions.swap_rate[1],
+                boundary_tenor=vol_conventions.boundary_tenor,
+            ),
         )
 
         calendars = {}
@@ -55,7 +59,7 @@ class Handler:
 
     async def arbitrage_check(
         self,
-        t: datetime,
+        t: date,
         volCube: dtos.VolatilityCube,
         ccy: str,
         tenor: str,
@@ -76,7 +80,7 @@ class Handler:
 
     async def vol_sampling(
         self,
-        t: datetime,
+        t: date,
         volCube: dtos.VolatilityCube,
         ccy: str,
         tenor: str,
@@ -91,8 +95,9 @@ class Handler:
             currency=ccy,
             tenor=tenor,
             expiry=expiry,
-            n_samples=100,
-            n_stdvs=20,
+            n_samples_middle=100,
+            n_samples_tail=10,
+            n_stdvs_tail=4,
         )
 
         return await lib.vol_sampling(params, self._http_session, self._rpc_url)

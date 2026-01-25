@@ -85,7 +85,7 @@ ArbitrageCell {
   height: 100%;
 }
 
-.matrix-cell {
+.period-cell {
   background: $surface;
   content-align: center middle;
   width: 100%;

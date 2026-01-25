@@ -35,7 +35,7 @@ from widgets import (
     EmptyCell,
     FileBar,
     FileInput,
-    MatrixCell,
+    PeriodCell,
     Quotes,
     QuotesPlot,
     RateSelect,
@@ -184,10 +184,10 @@ class ArbitrageGrid(Widget, can_focus=True):
 
             elems: list[Widget] = []
             elems.append(EmptyCell())
-            for tenor in tenors:  # use rich renderables for better styling of periods
-                elems.append(MatrixCell(str(tenor)))
+            for tenor in tenors:  
+                elems.append(PeriodCell(tenor))
             for expiry in expiries:
-                elems.append(MatrixCell(str(expiry)))
+                elems.append(PeriodCell(expiry))
                 for tenor in tenors:
                     if arb := by_rate.get((tenor, expiry)):
                         elems.append(ArbitrageCell(arb))

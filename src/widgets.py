@@ -17,6 +17,7 @@ from textual_autocomplete import PathAutoComplete
 from textual_plotext.plotext_plot import PlotextPlot
 
 import dtos
+from dtos import Period
 
 
 class _Suggester(Suggester):
@@ -135,9 +136,14 @@ class EmptyCell(Label):
     pass
 
 
-class MatrixCell(Label):
-    DEFAULT_CLASSES = "matrix-cell"
-    pass
+class PeriodCell(Widget):
+    def __init__(self, period: Period):
+        self.period = period
+
+    def compose(self) -> ComposeResult:
+        yield Label(
+            f"{self.period.length}[b]{self.period.unit}[/]", classes="period-cell"
+        )
 
 
 class ArbitrageCell(Widget, can_focus=True):

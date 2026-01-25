@@ -36,6 +36,7 @@ from widgets import (
     FileBar,
     FileInput,
     MatrixCell,
+    Quotes,
     QuotesPlot,
     RateSelect,
 )
@@ -203,38 +204,9 @@ class ArbitrageGrid(Widget, can_focus=True):
 class VolaSkewChart(QuotesPlot, can_focus=True):
     BORDER_TITLE = "Volatility Smile"
 
-    samples: reactive[Optional[VolSamples]] = reactive(None)
-
-    def _replot(self, samples: VolSamples) -> None:
-        self.plt.clear_data()
-        data = samples.samples
-        self.plt.plot(data.strikes, data.vols, marker="braille")
-        self.plt.scatter(data.quoted_strikes, data.quoted_vols, marker="o")
-        self.draw_forward(data.fwd)
-        self.refresh()
-
-    def watch_samples(self, samples: Optional[VolSamples]) -> None:
-        if samples:
-            self._replot(samples)
-
 
 class DensityChart(QuotesPlot, can_focus=True):
     BORDER_TITLE = "Implied Probability Density"
-
-    samples: reactive[Optional[VolSamples]] = reactive(None)
-
-    def _replot(self, samples: VolSamples) -> None:
-        self.plt.clear_data()
-        data = samples.samples
-        self.plt.plot(data.strikes, data.pdf, marker="braille")
-        self.plt.scatter(data.quoted_strikes, data.quoted_pdf, marker="o")
-        self.plt.hline(0.0, "orange")
-        self.draw_forward(data.fwd)
-        self.refresh()
-
-    def watch_samples(self, samples: Optional[VolSamples]) -> None:
-        if samples:
-            self._replot(samples)
 
 
 class Body(Widget):
@@ -245,7 +217,7 @@ class Body(Widget):
         yield RatesConventions()
         yield VolaSkewChart()
         yield ArbitrageGrid()
-        yield DensityChart()
+        yield DensityChart(hline=10.0)
 
     def watch_state(self, state: State) -> None:
         if not state:
@@ -253,9 +225,24 @@ class Body(Widget):
 
         self.query_one(RatesConventions).rates = state.rates
         self.query_one(RatesConventions).conventions = state.conventions
-        self.query_one(VolaSkewChart).samples = state.samples
-        self.query_one(DensityChart).samples = state.samples
         self.query_one(ArbitrageGrid).matrix = state.matrix
+
+        if data := state.samples:
+            samples = data.samples
+            self.query_one(VolaSkewChart).quotes = Quotes(
+                samples.quoted_strikes,
+                samples.quoted_vols,
+                samples.strikes,
+                samples.vols,
+                samples.fwd,
+            )
+            self.query_one(DensityChart).quotes = Quotes(
+                samples.quoted_strikes,
+                samples.quoted_pdf,
+                samples.strikes,
+                samples.pdf,
+                samples.fwd,
+            )
 
 
 class Arbitui(App):

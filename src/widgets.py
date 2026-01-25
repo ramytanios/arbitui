@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import List, Optional
 
 from anyio._core._fileio import Path
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.message import Message
+from textual.reactive import reactive
 from textual.suggester import Suggester
 from textual.widget import Widget
 from textual.widgets import Button, Input, Label, Select
@@ -88,14 +90,45 @@ class FileBar(Widget):
         yield FileInput(placeholder="Enter filename", id="file-input")
 
 
+@dataclass
+class Quotes:
+    quoted_strikes: List[float]
+    quoted_vals: List[float]
+    strikes: List[float]
+    vals: List[float]
+    fwd: float
+
+
 class QuotesPlot(PlotextPlot, can_focus=True):
+    def __init__(self, hline: Optional[float] = None, *args, **kwargs):
+        self.hline = hline
+        super().__init__(*args, **kwargs)
+
     DEFAULT_CLASSES = "box"
 
+    quotes: reactive[Optional[Quotes]] = reactive(None)
+
     def on_mount(self) -> None:
-        self.plt.xlabel("K")
+        self.plt.xlabel("%K")
 
     def draw_forward(self, fwd: float) -> None:
         self.plt.vline(fwd, "gray")
+
+    def _replot(self, new_quotes: Quotes) -> None:
+        self.plt.clear_data()
+        self.plt.plot(new_quotes.strikes, new_quotes.vals, marker="braille")
+        self.plt.scatter(new_quotes.quoted_strikes, new_quotes.quoted_vals, marker="o")
+        xticks = new_quotes.quoted_strikes
+        xlabels = list(map(lambda x: f"{x * 100:.2f}", xticks))
+        self.plt.xticks(xticks, xlabels)
+        self.draw_forward(new_quotes.fwd)
+        if x := self.hline:
+            self.plt.hline(x, "red")
+        self.refresh()
+
+    def watch_quotes(self, new_quotes: Optional[Quotes]) -> None:
+        if new_quotes:
+            self._replot(new_quotes)
 
 
 class EmptyCell(Label):

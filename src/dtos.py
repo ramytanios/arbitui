@@ -1,7 +1,8 @@
 from datetime import date
 from enum import Enum, auto
-from typing import Literal, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple
 
+from pydantic import model_serializer, model_validator
 from pydantic.config import ConfigDict
 from pydantic.main import BaseModel
 from pydantic.v1.utils import to_lower_camel
@@ -41,9 +42,63 @@ class DayCounter(Enum):
     ACT365 = "Act365"
 
 
+class Unit(Enum):
+    DAY = "D"
+    WEEK = "W"
+    MONTH = "M"
+    YEAR = "Y"
+
+
+class Period(BaseModel):
+    length: int
+    unit: Unit
+
+    @model_serializer()
+    def serialize_model(self) -> str:
+        return self.__str__()
+
+    @model_validator(mode="before")
+    @classmethod
+    def deserialize(cls, data: Any) -> Any:
+        if isinstance(data, str):
+            try:
+                length = int(data[:-1])
+                unit = Unit(str(data[-1]))
+                return {"length": length, "unit": unit}
+            except Exception as e:
+                raise ValueError(f"Invalid period {data}: {e}")
+        else:
+            return data
+
+    def __str__(self) -> str:
+        return f"{self.length}{self.unit.value}"
+
+    def __hash__(self) -> int:
+        return self.__str__().__hash__()
+
+    def to_year_fraction(self) -> float:
+        match self.unit:
+            case Unit.DAY:
+                u = 1.0 / 365
+            case Unit.WEEK:
+                u = 7.0 / 365
+            case Unit.MONTH:
+                u = 30.0 / 365
+            case Unit.YEAR:
+                u = 1.0
+            case _:
+                raise
+        return self.length * u
+
+    def __lt__(self, other):
+        if not isinstance(other, Period):
+            return NotImplemented
+        return self.to_year_fraction() < other.to_year_fraction()
+
+
 class Libor(Dto):
     currency: str
-    tenor: str
+    tenor: Period
     spot_lag: int
     day_counter: DayCounter
     calendar: str
@@ -63,10 +118,10 @@ class Libor(Dto):
 
 
 class SwapRate(Dto):
-    tenor: str
+    tenor: Period
     spot_lag: int
     payment_delay: int
-    fixed_period: str
+    fixed_period: Period
     floating_rate: str
     fixed_day_counter: DayCounter
     calendar: str
@@ -92,12 +147,12 @@ class SwapRate(Dto):
 
 
 class CompoundedSwapRate(Dto):
-    tenor: str
+    tenor: Period
     spot_lag: int
     payment_delay: int
-    fixed_period: str
+    fixed_period: Period
     floating_rate: str
-    floating_period: str
+    floating_period: Period
     fixed_day_counter: DayCounter
     calendar: str
     bd_convention: BusinessDayConvention
@@ -180,7 +235,7 @@ class VolatilitySkew(Dto):
 
 
 class VolatilitySurface(Dto):
-    surface: dict[str, VolatilitySkew]
+    surface: dict[Period, VolatilitySkew]
 
 
 class VolUnit(Enum):
@@ -189,7 +244,7 @@ class VolUnit(Enum):
 
 class VolatilityCube(Dto):
     unit: VolUnit
-    cube: dict[str, VolatilitySurface]
+    cube: dict[Period, VolatilitySurface]
 
 
 class LiborConventions(Dto):
@@ -204,7 +259,7 @@ class LiborConventions(Dto):
 class SwapRateConventions(Dto):
     spot_lag: int
     payment_delay: int
-    fixed_period: str
+    fixed_period: Period
     floating_rate: str
     fixed_day_counter: DayCounter
     calendar: str
@@ -248,8 +303,8 @@ class ArbitrageParams(Dto):
     market: dict[str, CcyMarket]
     static: Static
     currency: str
-    tenor: str
-    expiry: str
+    tenor: Period
+    expiry: Period
 
 
 class VolSamplingParams(Dto):
@@ -257,8 +312,8 @@ class VolSamplingParams(Dto):
     market: dict[str, CcyMarket]
     static: Static
     currency: str
-    tenor: str
-    expiry: str
+    tenor: Period
+    expiry: Period
     n_samples_middle: int
     n_samples_tail: int
     n_stdvs_tail: int

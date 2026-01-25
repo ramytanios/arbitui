@@ -35,16 +35,16 @@ class GetArbitrageMatrix(BaseModel):
 class GetArbitrageCheck(BaseModel):
     currency: str
     vol_cube: dtos.VolatilityCube
-    tenor: str
-    expiry: str
+    tenor: dtos.Period
+    expiry: dtos.Period
     type: Literal["get_arbitrage_check"] = "get_arbitrage_check"
 
 
 class GetVolSamples(BaseModel):
     currency: str
     vol_cube: dtos.VolatilityCube
-    tenor: str
-    expiry: str
+    tenor: dtos.Period
+    expiry: dtos.Period
     type: Literal["get_vol_samples"] = "get_vol_samples"
 
 
@@ -87,22 +87,22 @@ class Rates(BaseModel):
 
 class ArbitrageMatrix(BaseModel):
     currency: str
-    matrix: List[Tuple[str, str, dtos.ArbitrageCheck]]
+    matrix: List[Tuple[dtos.Period, dtos.Period, dtos.ArbitrageCheck]]
     type: Literal["arbitrage_matrix"] = "arbitrage_matrix"
 
 
 class ArbitrageCheck(BaseModel):
     currency: str
-    tenor: str
-    expiry: str
+    tenor: dtos.Period
+    expiry: dtos.Period
     check: dtos.ArbitrageCheck
     type: Literal["arbitrage_check"] = "arbitrage_check"
 
 
 class VolSamples(BaseModel):
     currency: str
-    tenor: str
-    expiry: str
+    tenor: dtos.Period
+    expiry: dtos.Period
     samples: dtos.VolSampling
     type: Literal["vol_samples"] = "vol_samples"
 
@@ -113,7 +113,7 @@ class Severity(Enum):
     WARNING = "warning"
 
     def to_textual(self) -> Literal["error", "warning", "information"]:
-        match self.value:
+        match self:
             case Severity.ERROR:
                 return "error"
             case Severity.WARNING:

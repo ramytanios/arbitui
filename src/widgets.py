@@ -14,6 +14,8 @@ from textual.widgets._select import SelectOverlay
 from textual_autocomplete import PathAutoComplete
 from textual_plotext.plotext_plot import PlotextPlot
 
+import dtos
+
 
 class _Suggester(Suggester):
     async def get_suggestion(self, value: str) -> str | None:
@@ -94,3 +96,25 @@ class QuotesPlot(PlotextPlot, can_focus=True):
 
     def draw_forward(self, fwd: float) -> None:
         self.plt.vline(fwd, "gray")
+
+
+class EmptyCell(Label):
+    pass
+
+
+class MatrixCell(Label):
+    DEFAULT_CLASSES = "matrix-cell"
+    pass
+
+
+class ArbitrageCell(Widget, can_focus=True):
+    def __init__(self, arbitrage: dtos.ArbitrageCheck, *args, **kwargs):
+        self.arbitrage = arbitrage
+        super().__init__(*args, **kwargs)
+
+    def compose(self) -> ComposeResult:
+        match self.arbitrage.arbitrage:
+            case None:
+                yield Label(variant="success", classes="arbitrage-cell")
+            case _:
+                yield Label(variant="warning", classes="arbitrage-cell")

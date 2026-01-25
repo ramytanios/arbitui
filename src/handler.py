@@ -62,8 +62,8 @@ class Handler:
         t: date,
         volCube: dtos.VolatilityCube,
         ccy: str,
-        tenor: str,
-        expiry: str,
+        tenor: dtos.Period,
+        expiry: dtos.Period,
     ) -> dtos.ArbitrageCheck:
         (market, static) = await self._market(volCube, ccy)
 
@@ -83,8 +83,8 @@ class Handler:
         t: date,
         volCube: dtos.VolatilityCube,
         ccy: str,
-        tenor: str,
-        expiry: str,
+        tenor: dtos.Period,
+        expiry: dtos.Period,
     ) -> dtos.VolSampling:
         (market, static) = await self._market(volCube, ccy)
 

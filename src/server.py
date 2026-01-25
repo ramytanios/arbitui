@@ -90,7 +90,9 @@ async def websocket_endpoint(ws: WebSocket):
             t = datetime.now().date()
             handler = Handler(rpc_url, session, ctx)
 
-            async def matrix() -> AsyncGenerator[Tuple[str, str, dtos.ArbitrageCheck]]:
+            async def matrix() -> AsyncGenerator[
+                Tuple[dtos.Period, dtos.Period, dtos.ArbitrageCheck]
+            ]:
                 for tenor, surface in vol.cube.items():
                     for expiry, _ in surface.surface.items():
                         check = await handler.arbitrage_check(
@@ -101,7 +103,7 @@ async def websocket_endpoint(ws: WebSocket):
             return [check async for check in matrix()]
 
     async def get_vol_sampling(
-        ccy: str, vol: dtos.VolatilityCube, tenor: str, expiry: str
+        ccy: str, vol: dtos.VolatilityCube, tenor: dtos.Period, expiry: dtos.Period
     ) -> dtos.VolSampling:
         async with aiohttp.ClientSession() as session:
             t = datetime.now().date()

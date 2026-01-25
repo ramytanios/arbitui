@@ -72,3 +72,26 @@ VolaSkewChart {
   height: 100%;
   border: round $secondary;
 }
+
+ArbitrageCell {
+  &:focus {
+    border: round;
+  }
+}
+
+.arbitrage-cell {
+  content-align: center middle;
+  width: 100%;
+  height: 100%;
+}
+
+.matrix-cell {
+  background: $surface;
+  content-align: center middle;
+  width: 100%;
+  height: 100%;
+}
+
+.matrix-grid {
+  grid-gutter: 1 1;
+}

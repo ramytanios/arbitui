@@ -41,7 +41,7 @@ async def _rpc_call[T: BaseModel](
     async with session.post(remote_url, json=json) as response:
         js = await response.json()
         rsp = RpcResponse.model_validate(js)
-        if (err := rsp.error):
+        if err := rsp.error:
             raise Exception(f"rpc error: {err.message}")
         if rsp.result is None:
             raise Exception("rpc missing `result` in response")

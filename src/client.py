@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from rich.text import Text
 from textual import log, on
 from textual.app import App, ComposeResult
+from textual.containers import Grid
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Label, Select
@@ -29,7 +30,15 @@ from message import (
     server_msg_adapter,
 )
 from theme import rates_terminal_theme
-from widgets import FileBar, FileInput, QuotesPlot, RateSelect
+from widgets import (
+    ArbitrageCell,
+    EmptyCell,
+    FileBar,
+    FileInput,
+    MatrixCell,
+    QuotesPlot,
+    RateSelect,
+)
 
 
 async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
@@ -163,6 +172,33 @@ class ArbitrageGrid(Widget, can_focus=True):
 
     matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
 
+    def compose(self) -> ComposeResult:
+        if data := self.matrix:
+            tenors = sorted(list({t for t, *_ in data.matrix}))
+            expiries = sorted(list({e for _, e, *_ in data.matrix}))
+            by_rate = {(t, e): v for t, e, v in data.matrix}
+
+            n_cols = len(tenors) + 1
+            n_rows = len(expiries) + 1
+
+            elems: list[Widget] = []
+            elems.append(EmptyCell())
+            for tenor in tenors:  # use rich renderables for better styling of periods
+                elems.append(MatrixCell(str(tenor)))
+            for expiry in expiries:
+                elems.append(MatrixCell(str(expiry)))
+                for tenor in tenors:
+                    if arb := by_rate.get((tenor, expiry)):
+                        elems.append(ArbitrageCell(arb))
+
+            grid = Grid(*elems, classes="matrix-grid")
+            grid.set_styles(
+                f"""
+                    grid-size: {n_cols} {n_rows};
+                """
+            )
+            yield grid
+
 
 class VolaSkewChart(QuotesPlot, can_focus=True):
     BORDER_TITLE = "Volatility Smile"
@@ -252,8 +288,8 @@ class Arbitui(App):
             try:
                 msg = await self.q_in.get()
                 await self.handle_server_msg(msg)
-            except Exception:
-                log.error("exception in receive loop: {e}")
+            except Exception as e:
+                log.error(f"exception in receive loop: {e}")
 
     async def handle_server_msg(self, msg: ServerMsg):
         match msg:

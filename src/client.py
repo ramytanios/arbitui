@@ -18,6 +18,7 @@ from message import (
     ArbitrageMatrix,
     ClientMsg,
     Conventions,
+    GetVolSamples,
     LoadCube,
     Notification,
     Ping,
@@ -184,13 +185,13 @@ class ArbitrageGrid(Widget, can_focus=True):
 
             elems: list[Widget] = []
             elems.append(EmptyCell())
-            for tenor in tenors:  
+            for tenor in tenors:
                 elems.append(PeriodCell(tenor))
             for expiry in expiries:
                 elems.append(PeriodCell(expiry))
                 for tenor in tenors:
                     if arb := by_rate.get((tenor, expiry)):
-                        elems.append(ArbitrageCell(arb))
+                        elems.append(ArbitrageCell(tenor, expiry, arb))
 
             self.log.warning(elems)
             grid = Grid(*elems, classes="matrix-grid")
@@ -315,6 +316,19 @@ class Arbitui(App):
         yield Header(show_clock=True)
         yield Body().data_bind(Arbitui.state)
         yield Footer()
+
+    async def on_arbitrage_cell_rate_underlying_entered(
+        self, event: ArbitrageCell.RateUnderlyingEntered
+    ) -> None:
+        if cube := self.state.cube:
+            await self.q_out.put(
+                GetVolSamples(
+                    currency=cube.currency,
+                    vol_cube=cube.cube,
+                    tenor=event.tenor,
+                    expiry=event.expiry,
+                )
+            )
 
     async def on_file_input_file_changed(self, event: FileInput.FileChanged) -> None:
         try:

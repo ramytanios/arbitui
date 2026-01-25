@@ -7,6 +7,7 @@ from anyio._core._fileio import Path
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.events import Key
 from textual.message import Message
 from textual.reactive import reactive
 from textual.suggester import Suggester
@@ -148,9 +149,27 @@ class PeriodCell(Widget):
 
 
 class ArbitrageCell(Widget, can_focus=True):
-    def __init__(self, arbitrage: dtos.ArbitrageCheck, *args, **kwargs):
+    def __init__(
+        self,
+        tenor: Period,
+        expiry: Period,
+        arbitrage: dtos.ArbitrageCheck,
+        *args,
+        **kwargs,
+    ):
+        self.tenor = tenor
+        self.expiry = expiry
         self.arbitrage = arbitrage
         super().__init__(*args, **kwargs)
+
+    @dataclass
+    class RateUnderlyingEntered(Message):
+        tenor: Period
+        expiry: Period
+
+    def on_key(self, event: Key) -> None:
+        if event.key == "enter":
+            self.post_message(self.RateUnderlyingEntered(self.tenor, self.expiry))
 
     def compose(self) -> ComposeResult:
         match self.arbitrage.arbitrage:

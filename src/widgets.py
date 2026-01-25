@@ -137,12 +137,13 @@ class EmptyCell(Label):
 
 
 class PeriodCell(Widget):
-    def __init__(self, period: Period):
+    def __init__(self, period: Period, *args, **kwargs):
         self.period = period
+        super().__init__(*args, **kwargs)
 
     def compose(self) -> ComposeResult:
         yield Label(
-            f"{self.period.length}[b]{self.period.unit}[/]", classes="period-cell"
+            f"{self.period.length}{self.period.unit.value}", classes="period-cell"
         )
 
 

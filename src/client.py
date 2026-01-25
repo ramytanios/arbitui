@@ -192,10 +192,13 @@ class ArbitrageGrid(Widget, can_focus=True):
                     if arb := by_rate.get((tenor, expiry)):
                         elems.append(ArbitrageCell(arb))
 
+            self.log.warning(elems)
             grid = Grid(*elems, classes="matrix-grid")
             grid.set_styles(
                 f"""
                     grid-size: {n_cols} {n_rows};
+                    grid-columns: 1fr;
+                    grid-rows: 1;
                 """
             )
             yield grid

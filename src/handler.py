@@ -26,12 +26,14 @@ class Handler:
 
         curves = {}
         curves[libor_conventions[1].reset_curve.name] = dtos.ContinuousCompounding(
-            rate=0.9
+            rate=1.0 / 100
         )
         curves[swap_conventions[1].discount_curve.name] = dtos.ContinuousCompounding(
-            rate=0.9
+            rate=1.0 / 100
         )
-        curves[floating_rate.reset_curve.name] = dtos.ContinuousCompounding(rate=0.9)
+        curves[floating_rate.reset_curve.name] = dtos.ContinuousCompounding(
+            rate=1.0 / 100
+        )
 
         fixings = {}
 

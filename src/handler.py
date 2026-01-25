@@ -42,8 +42,8 @@ class Handler:
             fixings=fixings,
             volatility=volCube,
             vol_conventions=dtos._VolatilityMarketConventions(
-                libor_rate=vol_conventions.libor_rate[1],
-                swap_rate=vol_conventions.swap_rate[1],
+                libor_rate=libor_conventions[1],
+                swap_rate=swap_conventions[1],
                 boundary_tenor=vol_conventions.boundary_tenor,
             ),
         )

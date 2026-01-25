@@ -36,8 +36,8 @@ INIT_RATE_DATA = """
         ('EUR', 'ESTR', '{"currency": "EUR", "tenor": "1D", "spot_lag": 0, "calendar": "world", "bd_convention": "Following", "day_counter": "Act360", "reset_curve": {"currency": "EUR", "name": "ESTR"}, "type": "Libor"}'),
         ('EUR', 'ESTR12M', '{"currency": "EUR", "tenor": "12M", "spot_lag": 2, "calendar": "world", "bd_convention": "Following", "day_counter": "Act360", "reset_curve": {"currency": "EUR", "name": "ESTR"}, "type": "Libor"}'),
         ('EUR', 'EURIBOR3M', '{"currency": "EUR", "tenor": "3M", "spot_lag": 2, "calendar": "world", "bd_convention": "Following", "day_counter": "Act360", "reset_curve": {"currency": "EUR", "name": "EURIBOR3M"}, "type": "Libor"}'),
-        ('EUR', 'ESTR10Y', '{"currency": "EUR", "tenor": "1Y", "spot_lag": 2, "floating_rate": "ESTR12M", "fixed_period": "12M", "fixed_day_counter": "Act360", "payment_delay": 2, "calendar": "world", "bd_convention": "ModifiedFollowing", "discount_curve": {"currency": "USD", "name": "ESTR"}, "type": "SwapRate"}'),
-        ('EUR', 'EURIBOR10Y', '{"currency": "EUR", "tenor": "1Y", "spot_lag": 2, "floating_rate": "EURIBOR3M", "fixed_period": "3M", "fixed_day_counter": "Act360", "payment_delay": 0, "calendar": "world", "bd_convention": "ModifiedFollowing", "discount_curve": {"currency": "USD", "name": "ESTR"}, "type": "SwapRate"}'),
+        ('EUR', 'ESTR10Y', '{"currency": "EUR", "tenor": "1Y", "spot_lag": 2, "floating_rate": "ESTR12M", "fixed_period": "12M", "fixed_day_counter": "Act360", "payment_delay": 2, "calendar": "world", "bd_convention": "ModifiedFollowing", "discount_curve": {"currency": "EUR", "name": "ESTR"}, "type": "SwapRate"}'),
+        ('EUR', 'EURIBOR10Y', '{"currency": "EUR", "tenor": "1Y", "spot_lag": 2, "floating_rate": "EURIBOR3M", "fixed_period": "3M", "fixed_day_counter": "Act360", "payment_delay": 0, "calendar": "world", "bd_convention": "ModifiedFollowing", "discount_curve": {"currency": "EUR", "name": "ESTR"}, "type": "SwapRate"}'),
         ('USD', 'SOFR', '{"currency": "USD", "tenor": "1D", "spot_lag": 0, "calendar": "world", "bd_convention": "Following", "day_counter": "Act360", "reset_curve": {"currency": "USD", "name": "SOFR"}, "type": "Libor"}'),
         ('USD', 'SOFR12M', '{"currency": "USD", "tenor": "12M", "spot_lag": 2, "calendar": "world", "bd_convention": "ModifiedFollowing", "day_counter": "Act360", "reset_curve": {"currency": "USD", "name": "SOFR"}, "type": "Libor"}'),
         ('USD', 'SOFR10Y', '{"currency": "USD", "tenor": "1Y", "spot_lag": 2, "floating_rate": "SOFR12M", "fixed_period": "12M", "fixed_day_counter": "Act360", "payment_delay": 2, "calendar": "world", "bd_convention": "ModifiedFollowing", "discount_curve": {"currency": "USD", "name": "SOFR"}, "type": "SwapRate"}');
@@ -220,9 +220,9 @@ if __name__ == "__main__":
     async def run():
         try:
             await init_db(ctx)
-            libor_rates = await get_libor_rates("USD", ctx)
-            swap_rates = await get_swap_rates("USD", ctx)
-            conventions = await get_conventions("USD", ctx)
+            libor_rates = await get_libor_rates("EUR", ctx)
+            swap_rates = await get_swap_rates("EUR", ctx)
+            conventions = await get_conventions("EUR", ctx)
             print(f"LIBOR rates: {libor_rates}")
             print(f"Swap rates: {swap_rates}")
             print(f"Conventions: {conventions}")

@@ -1,9 +1,9 @@
+import asyncio
 import json
 from asyncio.queues import Queue
 from asyncio.taskgroups import TaskGroup
 from datetime import datetime
 from json.decoder import JSONDecodeError
-from typing import AsyncGenerator, Tuple
 
 import aiohttp
 from loguru import logger
@@ -90,17 +90,22 @@ async def websocket_endpoint(ws: WebSocket):
             t = datetime.now().date()
             handler = Handler(rpc_url, session, ctx)
 
-            async def matrix() -> AsyncGenerator[
-                Tuple[dtos.Period, dtos.Period, dtos.ArbitrageCheck]
-            ]:
-                for tenor, surface in vol.cube.items():
-                    for expiry, _ in surface.surface.items():
-                        check = await handler.arbitrage_check(
-                            t, vol, ccy, tenor, expiry
-                        )
-                        yield (tenor, expiry, check)
+            sem = asyncio.Semaphore(20)
 
-            return [check async for check in matrix()]
+            checks = []
+
+            # TODO cache db results to improve performance
+            async def impl(tenor: dtos.Period, expiry: dtos.Period):
+                async with sem:
+                    check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
+                    checks.append((tenor, expiry, check))
+
+            async with asyncio.TaskGroup() as tg:
+                for tenor, surface in vol.cube.items():
+                    for expiry in surface.surface:
+                        tg.create_task(impl(tenor, expiry))
+
+            return checks
 
     async def get_vol_sampling(
         ccy: str, vol: dtos.VolatilityCube, tenor: dtos.Period, expiry: dtos.Period

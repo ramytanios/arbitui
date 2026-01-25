@@ -50,7 +50,7 @@ RatesConventions {
   }
 }
 
-ArbitrageMatrix {
+ArbitrageGrid {
   &:focus {
     border: round;
   }

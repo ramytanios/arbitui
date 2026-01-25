@@ -255,11 +255,19 @@ class Arbitui(App):
     TITLE = "Arbitui"
     SUB_TITLE = "IR Volatility Manager"
 
+    BINDINGS = [
+        ("a", "jump_to_matrix", "Jump to matrix"),
+    ]
+
     q_in = Queue[ServerMsg]()
     q_out = Queue[ClientMsg]()
     q_state_updates = Queue[Callable[[State], State]]()
 
     state: reactive[State] = reactive(State())
+
+    def action_jump_to_matrix(self) -> None:
+        matrix = self.query_one(ArbitrageGrid)
+        matrix.focus()
 
     def update_state(self, fn: Callable[[State], State]):
         try:

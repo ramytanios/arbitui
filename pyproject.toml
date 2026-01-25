@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 dependencies = [
+    "aiocache>=0.12.3",
     "aiohttp>=3.13.3",
     "aiosqlite>=0.22.1",
     "loguru>=0.7.3",

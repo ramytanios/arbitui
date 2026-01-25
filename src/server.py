@@ -94,7 +94,6 @@ async def websocket_endpoint(ws: WebSocket):
 
             checks = []
 
-            # TODO cache db results to improve performance
             async def impl(tenor: dtos.Period, expiry: dtos.Period):
                 async with sem:
                     check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)

@@ -212,6 +212,7 @@ async def update_conventions(
             if cursor.rowcount == 0:
                 raise ValueError(f"No conventions found for currency {ccy}")
             await db.commit()
+            await cache.clear()
     except aiosqlite.Error as e:
         logger.error(f"Failed to update conventions for {ccy}: {e}")
         raise

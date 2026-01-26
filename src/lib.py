@@ -10,7 +10,7 @@ import dtos
 
 class RpcRequest(BaseModel):
     method: str
-    params: dtos.ArbitrageParams | dtos.VolSamplingParams
+    params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams
     id: str
     jsonrpc: Literal["2.0"] = "2.0"
 
@@ -30,7 +30,7 @@ class RpcResponse(BaseModel):
 
 async def _rpc_call[T: BaseModel](
     method: str,
-    params: dtos.ArbitrageParams | dtos.VolSamplingParams,
+    params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams,
     session: ClientSession,
     remote_url: str,
     kls: Type[T],
@@ -51,12 +51,20 @@ async def _rpc_call[T: BaseModel](
 async def arbitrage_check(
     params: dtos.ArbitrageParams, session: ClientSession, remote_url: str
 ) -> dtos.ArbitrageCheck:
-    rsp = await _rpc_call("arbitrage", params, session, remote_url, dtos.ArbitrageCheck)
-    return rsp
+    return await _rpc_call(
+        "arbitrage", params, session, remote_url, dtos.ArbitrageCheck
+    )
+
+
+async def arbitrage_matrix(
+    params: dtos.ArbitrageMatrixParams, session: ClientSession, remote_url: str
+) -> dtos.ArbitrageMatrix:
+    return await _rpc_call(
+        "arbitragematrix", params, session, remote_url, dtos.ArbitrageMatrix
+    )
 
 
 async def vol_sampling(
     params: dtos.VolSamplingParams, session: ClientSession, remote_url: str
 ) -> dtos.VolSampling:
-    rsp = await _rpc_call("volsampling", params, session, remote_url, dtos.VolSampling)
-    return rsp
+    return await _rpc_call("volsampling", params, session, remote_url, dtos.VolSampling)

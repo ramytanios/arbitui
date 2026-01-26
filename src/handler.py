@@ -91,6 +91,21 @@ class Handler:
         async with self.sem:
             return await lib.arbitrage_check(params, self._http_session, self._rpc_url)
 
+    async def arbitrage_matrix(
+        self,
+        t: date,
+        volCube: dtos.VolatilityCube,
+        ccy: str,
+    ) -> dtos.ArbitrageMatrix:
+        (market, static) = await self._market(volCube, ccy)
+
+        params = dtos.ArbitrageMatrixParams(
+            t_ref=t, market=market, static=static, currency=ccy
+        )
+
+        async with self.sem:
+            return await lib.arbitrage_matrix(params, self._http_session, self._rpc_url)
+
     @cached(ttl=settings.vol_sampling_cache_ttl, noself=True)
     async def vol_sampling(
         self,

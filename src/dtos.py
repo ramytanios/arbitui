@@ -1,6 +1,6 @@
 from datetime import date
 from enum import Enum, auto
-from typing import Any, Literal, Optional, Tuple
+from typing import Any, List, Literal, Optional, Tuple
 
 from pydantic import model_serializer, model_validator
 from pydantic.config import ConfigDict
@@ -307,6 +307,13 @@ class ArbitrageParams(Dto):
     expiry: Period
 
 
+class ArbitrageMatrixParams(Dto):
+    t_ref: date
+    market: dict[str, CcyMarket]
+    static: Static
+    currency: str
+
+
 class VolSamplingParams(Dto):
     t_ref: date
     market: dict[str, CcyMarket]
@@ -337,6 +344,10 @@ type Arbitrage = LeftAsymptotic | RightAsymptotic | Density
 
 class ArbitrageCheck(Dto):
     arbitrage: Optional[Arbitrage]
+
+
+class ArbitrageMatrix(Dto):
+    matrix: List[Tuple[Period, Period, Optional[Arbitrage]]]
 
 
 class VolSampling(Dto):

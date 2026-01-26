@@ -176,4 +176,4 @@ class ArbitrageCell(Widget, can_focus=True):
             case None:
                 yield Label(variant="success", classes="arbitrage-cell")
             case _:
-                yield Label(variant="warning", classes="arbitrage-cell")
+                yield Label(variant="error", classes="arbitrage-cell")

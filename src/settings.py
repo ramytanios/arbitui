@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     file_search_path: str = "."
     max_requests_in_flight: int = 512
     vol_sampling_cache_ttl: int = 360
+    bulk_arbitrage_matrix: bool = True
     show_version: bool = True
 
     model_config = SettingsConfigDict(env_prefix="arbitui_")

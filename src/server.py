@@ -4,6 +4,7 @@ from asyncio.queues import Queue
 from asyncio.taskgroups import TaskGroup
 from datetime import datetime
 from json.decoder import JSONDecodeError
+from typing import List, Tuple
 
 import aiohttp
 from loguru import logger
@@ -43,7 +44,7 @@ from settings import settings
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
 
-    t = datetime.now().date() # TODO
+    t = datetime.now().date()  # TODO
 
     q_in = Queue[ClientMsg]()
     q_out = Queue[ServerMsg]()
@@ -87,22 +88,29 @@ async def websocket_endpoint(ws: WebSocket):
         swap_rates = await db.get_swap_rates(ccy, ctx)
         return Rates(currency=ccy, libor_rates=libor_rates, swap_rates=swap_rates)
 
-    async def get_arbitrage_matrix(ccy: str, vol: dtos.VolatilityCube):
+    async def get_arbitrage_matrix(
+        ccy: str, vol: dtos.VolatilityCube
+    ) -> List[Tuple[dtos.Period, dtos.Period, dtos.ArbitrageCheck]]:
         async with aiohttp.ClientSession() as session:
             handler = Handler(rpc_url, session, ctx)
 
-            checks = []
+            if not settings.bulk_arbitrage_matrix:
+                checks = []
 
-            async def impl(tenor: dtos.Period, expiry: dtos.Period):
-                check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
-                checks.append((tenor, expiry, check))
+                async def impl(tenor: dtos.Period, expiry: dtos.Period):
+                    check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
+                    checks.append((tenor, expiry, check))
 
-            async with asyncio.TaskGroup() as tg:
-                for tenor, surface in vol.cube.items():
-                    for expiry in surface.surface:
-                        tg.create_task(impl(tenor, expiry))
-
-            return checks
+                async with asyncio.TaskGroup() as tg:
+                    for tenor, surface in vol.cube.items():
+                        for expiry in surface.surface:
+                            tg.create_task(impl(tenor, expiry))
+                return checks
+            else:
+                rsp = await handler.arbitrage_matrix(t, vol, ccy)
+                return [
+                    (t, e, dtos.ArbitrageCheck(arbitrage=a)) for t, e, a in rsp.matrix
+                ]
 
     async def get_vol_sampling(
         ccy: str, vol: dtos.VolatilityCube, tenor: dtos.Period, expiry: dtos.Period

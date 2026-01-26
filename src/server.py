@@ -1,6 +1,5 @@
 import asyncio
 import json
-from asyncio.locks import Semaphore
 from asyncio.queues import Queue
 from asyncio.taskgroups import TaskGroup
 from datetime import datetime
@@ -44,14 +43,14 @@ from settings import settings
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
 
+    t = datetime.now().date() # TODO
+
     q_in = Queue[ClientMsg]()
     q_out = Queue[ServerMsg]()
 
     rpc_url = settings.rpc_url
 
     ctx = db.Context(settings.home / "arbitui.db")
-
-    sem = Semaphore(settings.max_requests_in_flight)
 
     logger.info("initializing database ..")
     await db.init_db(ctx)
@@ -90,15 +89,13 @@ async def websocket_endpoint(ws: WebSocket):
 
     async def get_arbitrage_matrix(ccy: str, vol: dtos.VolatilityCube):
         async with aiohttp.ClientSession() as session:
-            t = datetime.now().date()
             handler = Handler(rpc_url, session, ctx)
 
             checks = []
 
             async def impl(tenor: dtos.Period, expiry: dtos.Period):
-                async with sem:
-                    check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
-                    checks.append((tenor, expiry, check))
+                check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
+                checks.append((tenor, expiry, check))
 
             async with asyncio.TaskGroup() as tg:
                 for tenor, surface in vol.cube.items():
@@ -111,7 +108,6 @@ async def websocket_endpoint(ws: WebSocket):
         ccy: str, vol: dtos.VolatilityCube, tenor: dtos.Period, expiry: dtos.Period
     ) -> dtos.VolSampling:
         async with aiohttp.ClientSession() as session:
-            t = datetime.now().date()
             handler = Handler(rpc_url, session, ctx)
             return await handler.vol_sampling(t, vol, ccy, tenor, expiry)
 
@@ -213,7 +209,6 @@ async def websocket_endpoint(ws: WebSocket):
             ):
                 async with aiohttp.ClientSession() as session:
                     try:
-                        t = datetime.now().date()
                         handler = Handler(rpc_url, session, ctx)
                         check = await handler.arbitrage_check(
                             t, vol, ccy, tenor, expiry

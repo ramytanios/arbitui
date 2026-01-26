@@ -1,17 +1,27 @@
+from asyncio.locks import Semaphore
 from datetime import date
 
+from aiocache.decorators import cached
 from aiohttp import ClientSession
 
 import db
 import dtos
 import lib
+from settings import settings
 
 
 class Handler:
-    def __init__(self, rpc_url: str, http_session: ClientSession, db_ctx: db.Context):
+    def __init__(
+        self,
+        rpc_url: str,
+        http_session: ClientSession,
+        db_ctx: db.Context,
+    ):
         self._rpc_url = rpc_url
         self._http_session = http_session
         self._db_ctx = db_ctx
+
+        self.sem = Semaphore(settings.max_requests_in_flight)
 
     async def _market(self, volCube: dtos.VolatilityCube, ccy: str):
         vol_conventions = await db.get_conventions(ccy, self._db_ctx)
@@ -26,13 +36,13 @@ class Handler:
 
         curves = {}
         curves[libor_conventions[1].reset_curve.name] = dtos.ContinuousCompounding(
-            rate=1.0 / 100 # TODO 
+            rate=1.0 / 100  # TODO
         )
         curves[swap_conventions[1].discount_curve.name] = dtos.ContinuousCompounding(
-            rate=1.0 / 100 # TODO 
+            rate=1.0 / 100  # TODO
         )
         curves[floating_rate.reset_curve.name] = dtos.ContinuousCompounding(
-            rate=1.0 / 100 # TODO 
+            rate=1.0 / 100  # TODO
         )
 
         fixings = {}
@@ -78,8 +88,10 @@ class Handler:
             expiry=expiry,
         )
 
-        return await lib.arbitrage_check(params, self._http_session, self._rpc_url)
+        async with self.sem:
+            return await lib.arbitrage_check(params, self._http_session, self._rpc_url)
 
+    @cached(ttl=settings.vol_sampling_cache_ttl, noself=True)
     async def vol_sampling(
         self,
         t: date,
@@ -102,4 +114,5 @@ class Handler:
             n_stdvs_tail=4,
         )
 
-        return await lib.vol_sampling(params, self._http_session, self._rpc_url)
+        async with self.sem:
+            return await lib.vol_sampling(params, self._http_session, self._rpc_url)

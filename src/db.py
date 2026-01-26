@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import AsyncGenerator, Dict
 
 import aiosqlite
-from aiocache import SimpleMemoryCache, cached
+from aiocache import cached
 from loguru import logger
 
 import dtos
@@ -63,9 +63,6 @@ class Context:
     path: Path
 
 
-cache = SimpleMemoryCache(namespace="db_")
-
-
 @asynccontextmanager
 async def get_db_connection(ctx: Context) -> AsyncGenerator[aiosqlite.Connection, None]:
     try:
@@ -115,7 +112,7 @@ GET_LIBOR_RATES_QUERY = """
 """
 
 
-@cached(cache)
+@cached(namespace="db_")
 async def get_libor_rates(ccy: str, ctx: Context) -> Dict[str, dtos.Libor]:
     logger.info(f"querying database for {ccy} libor rates")
     try:
@@ -138,7 +135,7 @@ GET_SWAP_RATES_QUERY = """
 """
 
 
-@cached(cache)
+@cached(namespace="db_")
 async def get_swap_rates(ccy: str, ctx: Context) -> Dict[str, dtos.SwapRate]:
     logger.info(f"querying database for {ccy} swap rates")
     try:
@@ -164,7 +161,7 @@ GET_CONVENTIONS_QUERY = """
 """
 
 
-@cached(cache)
+@cached(namespace="db_")
 async def get_conventions(ccy: str, ctx: Context) -> dtos.VolatilityMarketConventions:
     logger.info(f"querying database for {ccy} conventions..")
     try:
@@ -212,7 +209,7 @@ async def update_conventions(
             if cursor.rowcount == 0:
                 raise ValueError(f"No conventions found for currency {ccy}")
             await db.commit()
-            await cache.clear()
+            # await cache.clear()
     except aiosqlite.Error as e:
         logger.error(f"Failed to update conventions for {ccy}: {e}")
         raise

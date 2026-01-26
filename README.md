@@ -1,4 +1,4 @@
-# arbitui 🚧
+# arbitui 📊
 
 Terminal-based interest rate volatility arbitrage analysis tool.
 

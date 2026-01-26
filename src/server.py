@@ -1,5 +1,6 @@
 import asyncio
 import json
+from asyncio.locks import Semaphore
 from asyncio.queues import Queue
 from asyncio.taskgroups import TaskGroup
 from datetime import datetime
@@ -50,6 +51,8 @@ async def websocket_endpoint(ws: WebSocket):
 
     ctx = db.Context(settings.home / "arbitui.db")
 
+    sem = Semaphore(settings.max_requests_in_flight)
+
     logger.info("initializing database ..")
     await db.init_db(ctx)
 
@@ -89,8 +92,6 @@ async def websocket_endpoint(ws: WebSocket):
         async with aiohttp.ClientSession() as session:
             t = datetime.now().date()
             handler = Handler(rpc_url, session, ctx)
-
-            sem = asyncio.Semaphore(20)
 
             checks = []
 

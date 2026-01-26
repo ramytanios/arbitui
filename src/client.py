@@ -221,7 +221,7 @@ class Body(Widget):
         yield RatesConventions()
         yield VolaSkewChart()
         yield ArbitrageGrid()
-        yield DensityChart(hline=10.0)
+        yield DensityChart(hline=0.0)
 
     def watch_state(self, state: State) -> None:
         if not state:

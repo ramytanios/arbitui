@@ -92,45 +92,61 @@ class FileBar(Widget):
         yield FileInput(placeholder="Enter filename", id="file-input")
 
 
-@dataclass
-class Quotes:
-    quoted_strikes: List[float]
-    quoted_vals: List[float]
-    strikes: List[float]
-    vals: List[float]
-    fwd: float
-
-
 class QuotesPlot(PlotextPlot, can_focus=True):
-    def __init__(self, hline: Optional[float] = None, *args, **kwargs):
-        self.hline = hline
+    @dataclass
+    class State:
+        quoted_strikes: List[float]
+        quoted_vals: List[float]
+        strikes: List[float]
+        vals: List[float]
+        fwd: float
+        arbitrage: Optional[dtos.Arbitrage]
+
+    def __init__(self, draw_hline_zero: bool = False, *args, **kwargs):
+        self.draw_hline_zero = draw_hline_zero
         super().__init__(*args, **kwargs)
 
     DEFAULT_CLASSES = "box"
 
-    quotes: reactive[Optional[Quotes]] = reactive(None)
+    state: reactive[Optional[State]] = reactive(None)
+
+    def _format_strike(self, k: float) -> str:
+        return f"{k * 100:.2f}"
 
     def on_mount(self) -> None:
         self.plt.xlabel("%K")
 
-    def draw_forward(self, fwd: float) -> None:
+    def _draw_forward(self, fwd: float) -> None:
         self.plt.vline(fwd, "gray")
 
-    def _replot(self, new_quotes: Quotes) -> None:
+    def _replot(self, new_state: State) -> None:
         self.plt.clear_data()
-        self.plt.plot(new_quotes.strikes, new_quotes.vals, marker="braille")
-        self.plt.scatter(new_quotes.quoted_strikes, new_quotes.quoted_vals, marker="o")
-        xticks = new_quotes.quoted_strikes
-        xlabels = list(map(lambda x: f"{x * 100:.2f}", xticks))
+        self.plt.plot(new_state.strikes, new_state.vals, marker="braille")
+        self.plt.scatter(new_state.quoted_strikes, new_state.quoted_vals, marker="o")
+        xticks = new_state.quoted_strikes
+        xlabels = list(map(self._format_strike, xticks))
         self.plt.xticks(xticks, xlabels)
-        self.draw_forward(new_quotes.fwd)
-        if x := self.hline:
-            self.plt.hline(x, "red")
+        self._draw_forward(new_state.fwd)
+        if self.draw_hline_zero:
+            self.plt.hline(1e-8, "orange")
+        match new_state.arbitrage:
+            case None:
+                self.plt.title("No arbitrage found")
+            case dtos.LeftAsymptotic:
+                self.plt.title("Left asymptotic arbitrage found")
+            case dtos.RightAsymptotic:
+                self.plt.title("Right asymptotic arbitrage found")
+            case dtos.Density(between=(left_strike, right_strike)):
+                self.plt.title(
+                    f"Density arbitrage found in ({self._format_strike(left_strike)}, {self._format_strike(right_strike)})"
+                )
+                self.plt.vline(left_strike, "red")
+                self.plt.vline(right_strike, "red")
         self.refresh()
 
-    def watch_quotes(self, new_quotes: Optional[Quotes]) -> None:
-        if new_quotes:
-            self._replot(new_quotes)
+    def watch_state(self, new_state: Optional[State]) -> None:
+        if new_state:
+            self._replot(new_state)
 
 
 class EmptyCell(Label):

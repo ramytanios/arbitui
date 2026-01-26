@@ -37,7 +37,6 @@ from widgets import (
     FileBar,
     FileInput,
     PeriodCell,
-    Quotes,
     QuotesPlot,
     RateSelect,
 )
@@ -193,7 +192,6 @@ class ArbitrageGrid(Widget, can_focus=True):
                     if arb := by_rate.get((tenor, expiry)):
                         elems.append(ArbitrageCell(tenor, expiry, arb))
 
-            self.log.warning(elems)
             grid = Grid(*elems, classes="matrix-grid")
             grid.set_styles(
                 f"""
@@ -205,11 +203,11 @@ class ArbitrageGrid(Widget, can_focus=True):
             yield grid
 
 
-class VolaSkewChart(QuotesPlot, can_focus=True):
+class VolaSkewChart(QuotesPlot):
     BORDER_TITLE = "Volatility Smile"
 
 
-class DensityChart(QuotesPlot, can_focus=True):
+class DensityChart(QuotesPlot):
     BORDER_TITLE = "Implied Probability Density"
 
 
@@ -221,7 +219,7 @@ class Body(Widget):
         yield RatesConventions()
         yield VolaSkewChart()
         yield ArbitrageGrid()
-        yield DensityChart(hline=1e-8)
+        yield DensityChart(draw_hline_zero=True)
 
     def watch_state(self, state: State) -> None:
         if not state:
@@ -231,21 +229,28 @@ class Body(Widget):
         self.query_one(RatesConventions).conventions = state.conventions
         self.query_one(ArbitrageGrid).matrix = state.matrix
 
-        if data := state.samples:
+        if (data := state.samples) is not None and (matrix := state.matrix) is not None:
             samples = data.samples
-            self.query_one(VolaSkewChart).quotes = Quotes(
+            tenor = data.tenor
+            expiry = data.expiry
+            arbitrage = next(
+                a for (t, e, a) in matrix.matrix if t == tenor and e == expiry
+            )
+            self.query_one(VolaSkewChart).state = VolaSkewChart.State(
                 samples.quoted_strikes,
                 samples.quoted_vols,
                 samples.strikes,
                 samples.vols,
                 samples.fwd,
+                arbitrage.arbitrage,
             )
-            self.query_one(DensityChart).quotes = Quotes(
+            self.query_one(DensityChart).state = DensityChart.State(
                 samples.quoted_strikes,
                 samples.quoted_pdf,
                 samples.strikes,
                 samples.pdf,
                 samples.fwd,
+                arbitrage.arbitrage,
             )
 
 
@@ -314,11 +319,12 @@ class Arbitui(App):
 
     async def state_updates_loop(self):
         while True:
+            fn = await self.q_state_updates.get()
             try:
-                fn = await self.q_state_updates.get()
                 self.state = fn(self.state)
             except Exception as e:
-                log.error(f"state update failed: {e}")
+                log.error(f"state update {fn} failed: {e}")
+                raise  # crash app on purpose
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -343,6 +349,8 @@ class Arbitui(App):
             await self.q_out.put(LoadCube(file_path=event.path))
         except Exception as e:
             self.notify(message=f"failed to handle fileinput event {e}")
+        else:
+            self.set_focus(self.query_one(RatesConventions))
 
 
 if __name__ == "__main__":

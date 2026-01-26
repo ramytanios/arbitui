@@ -1,6 +1,8 @@
-# Arbitui
+# arbitui 🚧
 
 Terminal-based interest rate volatility arbitrage analysis tool.
+
+**⚠️ Work in Progress**
 
 ## Features
 - 📊 Terminal-based TUI for volatility cube analysis
@@ -19,6 +21,4 @@ just run-tui
 
 ## Architecture
 - 🖥️ **Server**: WebSocket server with SQLite persistence, communicates via JSON RPC with [rates-vanilla-scope](https://github.com/ramytanios/rates-vanilla-scope)
-- 💻 **Client**: Textual TUI with interactive data visualization
-
-Load JSON volatility files to analyze arbitrage opportunities across tenors and expiries.
+- 💻 **Client**: [Textual](https://github.com/Textualize/textual) TUI with interactive data visualization

@@ -8,13 +8,13 @@ Terminal-based interest rates volatility arbitrage analysis tool.
 
 - Terminal-based rates volatility cube analysis
 - Interactive arbitrage matrix visualization
-- Volatility smile and probability density charts
+- Volatility smile and market implied probability density charts
 
 ## Future Features
 
 - 🔧 **Volatility Adjustment**: Ability to adjust volatilities to fix arbitrageable tenors/expiries.
 
-## Demo 🎬
+## Demo 
 
 <img alt="Demo" src="demo.gif" width="2048" height="1024" />
 

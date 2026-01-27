@@ -177,6 +177,7 @@ class ArbitrageGrid(Widget, can_focus=True):
         ("h", "cell_prev", "cell prev"),
         ("j", "cell_down", "cell down"),
         ("k", "cell_up", "cell up"),
+        ("tab", "tab"),
     ]
 
     matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
@@ -186,6 +187,9 @@ class ArbitrageGrid(Widget, can_focus=True):
     selected_pair: reactive[Optional[Tuple[dtos.Period, dtos.Period]]] = reactive(None)
     n_cols: reactive[int] = reactive(0)
     n_rows: reactive[int] = reactive(0)
+
+    def action_tab(self) -> None:
+        pass
 
     def action_cell_next(self) -> None:
         if curr := self.selected_pair:

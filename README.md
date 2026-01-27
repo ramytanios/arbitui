@@ -30,6 +30,6 @@ just run-tui
 
 ## Architecture
 
-- 🖥️ **Server**: WebSocket server with SQLite persistence, communicates via JSON RPC with [rates-vanilla-scope](https://github.com/ramytanios/rates-vanilla-scope)
+- 🖥️ **Server**: WebSocket server with SQLite persistence, communicates via JSON RPC with [rates-scope](https://github.com/ramytanios/rates-scope)
 - 💻 **Client**: [Textual](https://github.com/Textualize/textual) TUI with interactive data visualization
 

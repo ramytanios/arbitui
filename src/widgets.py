@@ -100,6 +100,8 @@ class QuotesPlot(PlotextPlot, can_focus=True):
         strikes: List[float]
         vals: List[float]
         fwd: float
+        tenor: dtos.Period
+        expiry: dtos.Period
         arbitrage: Optional[dtos.Arbitrage]
 
     def __init__(self, draw_hline_zero: bool = False, *args, **kwargs):
@@ -129,16 +131,17 @@ class QuotesPlot(PlotextPlot, can_focus=True):
         self._draw_forward(new_state.fwd)
         if self.draw_hline_zero:
             self.plt.hline(1e-8, "orange")
+        rate_underlying = f"Θ={new_state.tenor},T={new_state.expiry}"
         match new_state.arbitrage:
             case None:
-                self.plt.title("No arbitrage found")
+                self.plt.title(f"{rate_underlying}: no arbitrage found")
             case dtos.LeftAsymptotic:
-                self.plt.title("Left asymptotic arbitrage found")
+                self.plt.title(f"{rate_underlying}: left asymptotic arbitrage found")
             case dtos.RightAsymptotic:
-                self.plt.title("Right asymptotic arbitrage found")
+                self.plt.title(f"{rate_underlying}: right asymptotic arbitrage found")
             case dtos.Density(between=(left_strike, right_strike)):
                 self.plt.title(
-                    f"Density arbitrage found in ({self._format_strike(left_strike)}, {self._format_strike(right_strike)})"
+                    f"{rate_underlying}: density arbitrage found in ({self._format_strike(left_strike)}, {self._format_strike(right_strike)})"
                 )
                 self.plt.vline(left_strike, "red")
                 self.plt.vline(right_strike, "red")

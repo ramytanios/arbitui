@@ -242,6 +242,8 @@ class Body(Widget):
                 samples.strikes,
                 samples.vols,
                 samples.fwd,
+                tenor,
+                expiry,
                 arbitrage.arbitrage,
             )
             self.query_one(DensityChart).state = DensityChart.State(
@@ -250,6 +252,8 @@ class Body(Widget):
                 samples.strikes,
                 samples.pdf,
                 samples.fwd,
+                tenor,
+                expiry,
                 arbitrage.arbitrage,
             )
 

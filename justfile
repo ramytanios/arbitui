@@ -24,4 +24,4 @@ ws-client:
     websocat ws://localhost:8000/ws
 
 tui-gif:
-    vhs tui.tape
+    vhs demo.tape

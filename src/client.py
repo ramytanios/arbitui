@@ -171,7 +171,18 @@ class ArbitrageGrid(Widget, can_focus=True):
     DEFAULT_CLASSES = "box"
     BORDER_TITLE = "Arbitrage Matrix"
 
+    BINDINGS = [
+        ("l", "next_cell", "Jump to next cell"),
+        ("h", "prev_cell", "Jump to previous_cell"),
+    ]
+
     matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
+
+    def action_next_cell(self) -> None: 
+        self.screen.focus_next()
+
+    def action_prev_cell(self) -> None: 
+        self.screen.focus_previous()
 
     def compose(self) -> ComposeResult:
         if data := self.matrix:

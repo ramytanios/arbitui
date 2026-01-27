@@ -177,7 +177,6 @@ class ArbitrageGrid(Widget, can_focus=True):
         ("h", "cell_prev", "cell prev"),
         ("j", "cell_down", "cell down"),
         ("k", "cell_up", "cell up"),
-        ("tab", "tab"),
     ]
 
     matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
@@ -187,9 +186,6 @@ class ArbitrageGrid(Widget, can_focus=True):
     selected_pair: reactive[Optional[Tuple[dtos.Period, dtos.Period]]] = reactive(None)
     n_cols: reactive[int] = reactive(0)
     n_rows: reactive[int] = reactive(0)
-
-    def action_tab(self) -> None:
-        pass
 
     def action_cell_next(self) -> None:
         if curr := self.selected_pair:
@@ -236,20 +232,25 @@ class ArbitrageGrid(Widget, can_focus=True):
                     )
         return elems
 
-    def watch_selected_pair(self) -> None:
-        if pair := self.selected_pair:
-            for widget in self.widgets:
-                match widget:
-                    case ArbitrageCell(tenor=tenor, expiry=expiry) if (
-                        pair[0] == tenor and pair[1] == expiry
-                    ):
-                        try:
-                            widget_cell = self.query_one(
-                                f"#T{tenor}E{expiry}", ArbitrageCell
-                            )
-                            self.app.set_focus(widget_cell)
-                        except Exception:
-                            pass
+    def watch_selected_pair(
+        self,
+        old_pair: Tuple[dtos.Period, dtos.Period],
+        new_pair: Tuple[dtos.Period, dtos.Period],
+    ) -> None:
+        for widget in self.widgets:
+            match widget:
+                case ArbitrageCell(tenor=tenor, expiry=expiry) if (
+                    new_pair[0] == tenor and new_pair[1] == expiry
+                ):
+                    try:
+                        old_cell = self.query_one(
+                            f"#T{old_pair[0]}E{old_pair[1]}", ArbitrageCell
+                        )
+                        old_cell.remove_class("highlighted-cell")
+                        new_cell = self.query_one(f"#T{tenor}E{expiry}", ArbitrageCell)
+                        new_cell.add_class("highlighted-cell")
+                    except Exception:
+                        pass
 
     def compute_tenors(self) -> List[dtos.Period]:
         if data := self.matrix:

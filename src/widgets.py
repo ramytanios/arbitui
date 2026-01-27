@@ -167,7 +167,7 @@ class PeriodCell(Widget):
         )
 
 
-class ArbitrageCell(Widget, can_focus=True):
+class ArbitrageCell(Widget):
     __match_args__ = ("tenor", "expiry")
 
     def __init__(

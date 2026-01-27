@@ -1,6 +1,6 @@
 # arbitui 📊
 
-Terminal-based interest rate volatility arbitrage analysis tool.
+Terminal-based interest rates volatility arbitrage analysis tool.
 
 **⚠️ Work in Progress**
 

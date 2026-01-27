@@ -60,11 +60,11 @@ async def arbitrage_matrix(
     params: dtos.ArbitrageMatrixParams, session: ClientSession, remote_url: str
 ) -> dtos.ArbitrageMatrix:
     return await _rpc_call(
-        "arbitragematrix", params, session, remote_url, dtos.ArbitrageMatrix
+        "arbitrage-matrix", params, session, remote_url, dtos.ArbitrageMatrix
     )
 
 
 async def vol_sampling(
     params: dtos.VolSamplingParams, session: ClientSession, remote_url: str
 ) -> dtos.VolSampling:
-    return await _rpc_call("volsampling", params, session, remote_url, dtos.VolSampling)
+    return await _rpc_call("vol-sampling", params, session, remote_url, dtos.VolSampling)

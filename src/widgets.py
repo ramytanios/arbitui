@@ -168,6 +168,8 @@ class PeriodCell(Widget):
 
 
 class ArbitrageCell(Widget, can_focus=True):
+    __match_args__ = ("tenor", "expiry")
+
     def __init__(
         self,
         tenor: Period,

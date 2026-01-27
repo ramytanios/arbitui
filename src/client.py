@@ -2,7 +2,7 @@ import asyncio
 from asyncio import Queue
 from asyncio.queues import QueueFull
 from dataclasses import dataclass, replace
-from typing import Callable, Optional
+from typing import Callable, List, Optional, Tuple
 
 import websockets
 from pydantic import ValidationError
@@ -14,6 +14,7 @@ from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Label, Select
 
+import dtos
 from message import (
     ArbitrageMatrix,
     ClientMsg,
@@ -172,46 +173,108 @@ class ArbitrageGrid(Widget, can_focus=True):
     BORDER_TITLE = "Arbitrage Matrix"
 
     BINDINGS = [
-        ("l", "next_cell", "Jump to next cell"),
-        ("h", "prev_cell", "Jump to previous_cell"),
+        ("l", "cell_next", "cell next"),
+        ("h", "cell_prev", "cell prev"),
+        ("j", "cell_down", "cell down"),
+        ("k", "cell_up", "cell up"),
     ]
 
     matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
+    tenors: reactive[List[dtos.Period]] = reactive([])
+    expiries: reactive[List[dtos.Period]] = reactive([])
+    widgets: reactive[List[Widget]] = reactive([])
+    selected_pair: reactive[Optional[Tuple[dtos.Period, dtos.Period]]] = reactive(None)
+    n_cols: reactive[int] = reactive(0)
+    n_rows: reactive[int] = reactive(0)
 
-    def action_next_cell(self) -> None: 
-        self.screen.focus_next()
+    def action_cell_next(self) -> None:
+        if curr := self.selected_pair:
+            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
+            next_ij = (min(curr_ij[0] + 1, len(self.tenors) - 1), curr_ij[1])
+            next = (self.tenors[next_ij[0]], self.expiries[next_ij[1]])
+            self.selected_pair = next
 
-    def action_prev_cell(self) -> None: 
-        self.screen.focus_previous()
+    def action_cell_prev(self) -> None:
+        if curr := self.selected_pair:
+            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
+            prev_ij = (max(curr_ij[0] - 1, 0), curr_ij[1])
+            prev = (self.tenors[prev_ij[0]], self.expiries[prev_ij[1]])
+            self.selected_pair = prev
+
+    def action_cell_down(self) -> None:
+        if curr := self.selected_pair:
+            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
+            down_ij = (curr_ij[0], min(curr_ij[1] + 1, len(self.expiries) - 1))
+            down = (self.tenors[down_ij[0]], self.expiries[down_ij[1]])
+            self.selected_pair = down
+
+    def action_cell_up(self) -> None:
+        if curr := self.selected_pair:
+            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
+            up_ij = (curr_ij[0], max(curr_ij[1] - 1, 0))
+            up = (self.tenors[up_ij[0]], self.expiries[up_ij[1]])
+            self.selected_pair = up
+
+    def compute_widgets(self) -> List[Widget]:
+        by_rate = {}
+        if data := self.matrix:
+            by_rate = {(t, e): v for t, e, v in data.matrix}
+        elems: list[Widget] = []
+        elems.append(EmptyCell())
+        for tenor in self.tenors:
+            elems.append(PeriodCell(tenor))
+        for expiry in self.expiries:
+            elems.append(PeriodCell(expiry))
+            for tenor in self.tenors:
+                if arb := by_rate.get((tenor, expiry)):
+                    elems.append(
+                        ArbitrageCell(tenor, expiry, arb, id=f"T{tenor}E{expiry}")
+                    )
+        return elems
+
+    def watch_selected_pair(self) -> None:
+        if pair := self.selected_pair:
+            for widget in self.widgets:
+                match widget:
+                    case ArbitrageCell(tenor=tenor, expiry=expiry) if (
+                        pair[0] == tenor and pair[1] == expiry
+                    ):
+                        try:
+                            widget_cell = self.query_one(
+                                f"#T{tenor}E{expiry}", ArbitrageCell
+                            )
+                            self.app.set_focus(widget_cell)
+                        except Exception:
+                            pass
+
+    def compute_tenors(self) -> List[dtos.Period]:
+        if data := self.matrix:
+            return sorted(list({t for t, *_ in data.matrix}))
+        else:
+            return []
+
+    def compute_expiries(self) -> List[dtos.Period]:
+        if data := self.matrix:
+            return sorted(list({e for _, e, *_ in data.matrix}))
+        else:
+            return []
+
+    def compute_n_cols(self) -> int:
+        return len(self.tenors) + 1
+
+    def compute_n_rows(self) -> int:
+        return len(self.expiries) + 1
 
     def compose(self) -> ComposeResult:
-        if data := self.matrix:
-            tenors = sorted(list({t for t, *_ in data.matrix}))
-            expiries = sorted(list({e for _, e, *_ in data.matrix}))
-            by_rate = {(t, e): v for t, e, v in data.matrix}
-
-            n_cols = len(tenors) + 1
-            n_rows = len(expiries) + 1
-
-            elems: list[Widget] = []
-            elems.append(EmptyCell())
-            for tenor in tenors:
-                elems.append(PeriodCell(tenor))
-            for expiry in expiries:
-                elems.append(PeriodCell(expiry))
-                for tenor in tenors:
-                    if arb := by_rate.get((tenor, expiry)):
-                        elems.append(ArbitrageCell(tenor, expiry, arb))
-
-            grid = Grid(*elems, classes="matrix-grid")
-            grid.set_styles(
-                f"""
-                    grid-size: {n_cols} {n_rows};
-                    grid-columns: 1fr;
-                    grid-rows: 1;
-                """
-            )
-            yield grid
+        grid = Grid(*self.widgets, classes="matrix-grid")
+        grid.set_styles(
+            f"""
+                 grid-size: {self.n_cols} {self.n_rows};
+                 grid-columns: 1fr;
+                 grid-rows: 1;
+            """
+        )
+        yield grid
 
 
 class VolaSkewChart(QuotesPlot):
@@ -267,6 +330,7 @@ class Body(Widget):
                 expiry,
                 arbitrage.arbitrage,
             )
+            self.query_one(ArbitrageGrid).selected_pair = (tenor, expiry)
 
 
 class Arbitui(App):

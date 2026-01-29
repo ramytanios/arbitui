@@ -260,6 +260,7 @@ class ArbitrageGrid(Widget, can_focus=True):
                         )
                         old_cell.remove_class("highlighted-cell")
                         new_cell = self.query_one(f"#T{tenor}E{expiry}", ArbitrageCell)
+                        new_cell.scroll_visible()
                         new_cell.add_class("highlighted-cell")
                     except Exception:
                         pass

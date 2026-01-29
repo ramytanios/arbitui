@@ -10,6 +10,8 @@ from rich.text import Text
 from textual import log, on
 from textual.app import App, ComposeResult
 from textual.containers import Grid
+from textual.events import Key
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Label, Select
@@ -179,6 +181,11 @@ class ArbitrageGrid(Widget, can_focus=True):
         ("k", "cell_up", "cell up"),
     ]
 
+    @dataclass
+    class RateUnderlyingEntered(Message):
+        tenor: dtos.Period
+        expiry: dtos.Period
+
     matrix: reactive[Optional[ArbitrageMatrix]] = reactive(None, recompose=True)
     tenors: reactive[List[dtos.Period]] = reactive([])
     expiries: reactive[List[dtos.Period]] = reactive([])
@@ -231,6 +238,11 @@ class ArbitrageGrid(Widget, can_focus=True):
                         ArbitrageCell(tenor, expiry, arb, id=f"T{tenor}E{expiry}")
                     )
         return elems
+
+    def on_key(self, event: Key) -> None:
+        if event.key == "enter" and (pair := self.selected_pair) is not None:
+            tenor, expiry = pair[0], pair[1]
+            self.post_message(self.RateUnderlyingEntered(tenor, expiry))
 
     def watch_selected_pair(
         self,
@@ -415,8 +427,8 @@ class Arbitui(App):
         yield Body().data_bind(Arbitui.state)
         yield Footer()
 
-    async def on_arbitrage_cell_rate_underlying_entered(
-        self, event: ArbitrageCell.RateUnderlyingEntered
+    async def on_arbitrage_grid_rate_underlying_entered(
+        self, event: ArbitrageGrid.RateUnderlyingEntered
     ) -> None:
         if cube := self.state.cube:
             await self.q_out.put(

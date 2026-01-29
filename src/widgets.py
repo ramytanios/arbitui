@@ -7,7 +7,6 @@ from anyio._core._fileio import Path
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.events import Key
 from textual.message import Message
 from textual.reactive import reactive
 from textual.suggester import Suggester
@@ -182,15 +181,6 @@ class ArbitrageCell(Widget):
         self.expiry = expiry
         self.arbitrage = arbitrage
         super().__init__(*args, **kwargs)
-
-    @dataclass
-    class RateUnderlyingEntered(Message):
-        tenor: Period
-        expiry: Period
-
-    def on_key(self, event: Key) -> None:
-        if event.key == "enter":
-            self.post_message(self.RateUnderlyingEntered(self.tenor, self.expiry))
 
     def compose(self) -> ComposeResult:
         match self.arbitrage.arbitrage:

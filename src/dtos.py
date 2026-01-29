@@ -83,7 +83,7 @@ class Period(BaseModel):
             case Unit.WEEK:
                 u = 7.0 / 365
             case Unit.MONTH:
-                u = 30.0 / 365
+                u = 1 / 12.0
             case Unit.YEAR:
                 u = 1.0
             case _:

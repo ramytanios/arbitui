@@ -134,9 +134,9 @@ class QuotesPlot(PlotextPlot, can_focus=True):
         match new_state.arbitrage:
             case None:
                 self.plt.title(f"{rate_underlying}: no arbitrage found")
-            case dtos.LeftAsymptotic:
+            case dtos.LeftAsymptotic():
                 self.plt.title(f"{rate_underlying}: left asymptotic arbitrage found")
-            case dtos.RightAsymptotic:
+            case dtos.RightAsymptotic():
                 self.plt.title(f"{rate_underlying}: right asymptotic arbitrage found")
             case dtos.Density(between=(left_strike, right_strike)):
                 self.plt.title(

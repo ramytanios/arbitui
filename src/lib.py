@@ -1,4 +1,5 @@
 import uuid
+from enum import Enum
 from typing import Literal, Optional, Type
 
 from aiohttp import ClientSession
@@ -8,8 +9,15 @@ from pydantic import BaseModel
 import dtos
 
 
+class Method(Enum):
+    PRICE = "price"
+    VOL_SAMPLING = "vol-sampling"
+    ARBITRAGE = "arbitrage"
+    ARBITRAGE_MATRIX = "arbitrage-matrix"
+
+
 class RpcRequest(BaseModel):
-    method: str
+    method: Method
     params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams
     id: str
     jsonrpc: Literal["2.0"] = "2.0"
@@ -29,14 +37,14 @@ class RpcResponse(BaseModel):
 
 
 async def _rpc_call[T: BaseModel](
-    method: str,
+    method: Method,
     params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams,
     session: ClientSession,
     remote_url: str,
     kls: Type[T],
 ) -> T:
     logger.info(f"rpc call method: {method}")
-    request = RpcRequest(method=method, params=params, id=str(uuid.uuid4()))
+    request = RpcRequest(method=method.value, params=params, id=str(uuid.uuid4()))
     json = request.model_dump(by_alias=True, mode="json")
     async with session.post(remote_url, json=json) as response:
         js = await response.json()
@@ -52,7 +60,7 @@ async def arbitrage_check(
     params: dtos.ArbitrageParams, session: ClientSession, remote_url: str
 ) -> dtos.ArbitrageCheck:
     return await _rpc_call(
-        "arbitrage", params, session, remote_url, dtos.ArbitrageCheck
+        Method.ARBITRAGE, params, session, remote_url, dtos.ArbitrageCheck
     )
 
 
@@ -60,11 +68,13 @@ async def arbitrage_matrix(
     params: dtos.ArbitrageMatrixParams, session: ClientSession, remote_url: str
 ) -> dtos.ArbitrageMatrix:
     return await _rpc_call(
-        "arbitrage-matrix", params, session, remote_url, dtos.ArbitrageMatrix
+        Method.ARBITRAGE_MATRIX, params, session, remote_url, dtos.ArbitrageMatrix
     )
 
 
 async def vol_sampling(
     params: dtos.VolSamplingParams, session: ClientSession, remote_url: str
 ) -> dtos.VolSampling:
-    return await _rpc_call("vol-sampling", params, session, remote_url, dtos.VolSampling)
+    return await _rpc_call(
+        Method.VOL_SAMPLING, params, session, remote_url, dtos.VolSampling
+    )

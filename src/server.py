@@ -164,14 +164,15 @@ async def websocket_endpoint(ws: WebSocket):
                     try:
                         matrix = await get_arbitrage_matrix(ccy, vol)
                         await q_out.put(ArbitrageMatrix(currency=ccy, matrix=matrix))
+                    except Exception:
+                        await log_notify_error("failed to return arbitrage matrix")
+                    else:
                         await q_out.put(
                             Notification(
                                 msg="Arbitrage matrix constructed",
                                 severity=Severity.INFORMATION,
                             )
                         )
-                    except Exception:
-                        await log_notify_error("failed to return arbitrage matrix")
 
                     tenor = list(vol.cube.keys())[0]
                     expiry = list(vol.cube[tenor].surface.keys())[0]

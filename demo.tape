@@ -15,19 +15,23 @@ Enter
 Sleep 3s
 Type "a"
 Sleep 3s
-Tab
+Type "G"
 Sleep 3s
-Tab
-Sleep 3s
-Tab
-Sleep 3s
+Type "l"
+Sleep 1s 
+Type "l"
+Sleep 1s 
+Type "l"
+Sleep 1s 
 Enter
-Sleep 2s 
-Tab
-Sleep 3s
-Tab 
-Sleep 3s
-Tab 
-Sleep 3s
+Sleep 6s
+Type "l"
+Sleep 1s 
 Enter
-Sleep 3s
+Sleep 6s 
+Type "l"
+Sleep 1s 
+Enter
+Sleep 6s
+Type "g"
+Sleep 2s

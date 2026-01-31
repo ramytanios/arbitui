@@ -126,7 +126,7 @@ class Handler:
             expiry=expiry,
             n_samples_middle=100,
             n_samples_tail=10,
-            n_stdvs_tail=4,
+            n_stdvs_tail=0,
         )
 
         async with self.sem:

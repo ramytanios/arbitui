@@ -179,6 +179,10 @@ class ArbitrageGrid(Widget, can_focus=True):
         ("h", "cell_prev", "cell prev"),
         ("j", "cell_down", "cell down"),
         ("k", "cell_up", "cell up"),
+        ("$", "end_of_row", "end_of_row"),
+        ("^", "start_of_row", "start_of_row"),
+        ("g", "start_of_col", "start_of_col"),
+        ("G", "end_of_col", "end_of_col"),
     ]
 
     @dataclass
@@ -194,33 +198,52 @@ class ArbitrageGrid(Widget, can_focus=True):
     n_cols: reactive[int] = reactive(0)
     n_rows: reactive[int] = reactive(0)
 
-    def action_cell_next(self) -> None:
+    def _curr_loc(self) -> Optional[Tuple[int, int]]:
         if curr := self.selected_pair:
-            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
-            next_ij = (min(curr_ij[0] + 1, len(self.tenors) - 1), curr_ij[1])
-            next = (self.tenors[next_ij[0]], self.expiries[next_ij[1]])
-            self.selected_pair = next
+            return (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
+
+    def _pair_from_loc(self, loc: Tuple[int, int]):
+        return (self.tenors[loc[0]], self.expiries[loc[1]])
+
+    def action_cell_next(self) -> None:
+        if curr_loc := self._curr_loc():
+            next_loc = (min(curr_loc[0] + 1, len(self.tenors) - 1), curr_loc[1])
+            self.selected_pair = self._pair_from_loc(next_loc)
 
     def action_cell_prev(self) -> None:
-        if curr := self.selected_pair:
-            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
-            prev_ij = (max(curr_ij[0] - 1, 0), curr_ij[1])
-            prev = (self.tenors[prev_ij[0]], self.expiries[prev_ij[1]])
-            self.selected_pair = prev
+        if curr_loc := self._curr_loc():
+            prev_loc = (max(curr_loc[0] - 1, 0), curr_loc[1])
+            self.selected_pair = self._pair_from_loc(prev_loc)
 
     def action_cell_down(self) -> None:
-        if curr := self.selected_pair:
-            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
-            down_ij = (curr_ij[0], min(curr_ij[1] + 1, len(self.expiries) - 1))
-            down = (self.tenors[down_ij[0]], self.expiries[down_ij[1]])
-            self.selected_pair = down
+        if curr_loc := self._curr_loc():
+            down_loc = (curr_loc[0], min(curr_loc[1] + 1, len(self.expiries) - 1))
+            self.selected_pair = self._pair_from_loc(down_loc)
 
     def action_cell_up(self) -> None:
-        if curr := self.selected_pair:
-            curr_ij = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
-            up_ij = (curr_ij[0], max(curr_ij[1] - 1, 0))
-            up = (self.tenors[up_ij[0]], self.expiries[up_ij[1]])
-            self.selected_pair = up
+        if curr_loc := self._curr_loc():
+            up_loc = (curr_loc[0], max(curr_loc[1] - 1, 0))
+            self.selected_pair = self._pair_from_loc(up_loc)
+
+    def action_start_of_row(self) -> None:
+        if curr_loc := self._curr_loc():
+            target_loc = (0, curr_loc[1])
+            self.selected_pair = self._pair_from_loc(target_loc)
+
+    def action_end_of_row(self) -> None:
+        if curr_loc := self._curr_loc():
+            target_loc = (len(self.tenors) - 1, curr_loc[1])
+            self.selected_pair = self._pair_from_loc(target_loc)
+
+    def action_start_of_col(self) -> None:
+        if curr_loc := self._curr_loc():
+            target_loc = (curr_loc[0], 0)
+            self.selected_pair = self._pair_from_loc(target_loc)
+
+    def action_end_of_col(self) -> None:
+        if curr_loc := self._curr_loc():
+            target_loc = (curr_loc[0], len(self.expiries) - 1)
+            self.selected_pair = self._pair_from_loc(target_loc)
 
     def compute_widgets(self) -> List[Widget]:
         by_rate = {}
@@ -234,9 +257,16 @@ class ArbitrageGrid(Widget, can_focus=True):
             elems.append(PeriodCell(expiry))
             for tenor in self.tenors:
                 if arb := by_rate.get((tenor, expiry)):
-                    elems.append(
-                        ArbitrageCell(tenor, expiry, arb, id=f"T{tenor}E{expiry}")
+                    id = f"T{tenor}E{expiry}"
+                    match arb.arbitrage:
+                        case None:
+                            css = "success-cell"
+                        case _:
+                            css = "error-cell"
+                    cell = ArbitrageCell(
+                        tenor, expiry, id=id, classes=f"arbitrage-cell {css}"
                     )
+                    elems.append(cell)
         return elems
 
     def on_key(self, event: Key) -> None:
@@ -284,15 +314,23 @@ class ArbitrageGrid(Widget, can_focus=True):
         return len(self.expiries) + 1
 
     def compose(self) -> ComposeResult:
-        grid = Grid(*self.widgets, classes="matrix-grid")
-        grid.set_styles(
+        header_widgets = self.widgets[: self.n_cols]
+        matrix_widgets = self.widgets[self.n_cols :]
+        header = Grid(*header_widgets, classes="matrix-header")
+        header.set_styles(
             f"""
-                 grid-size: {self.n_cols} {self.n_rows};
-                 grid-columns: 1fr;
-                 grid-rows: 1;
+                 grid-size: {self.n_cols};
             """
         )
-        yield grid
+        body = Grid(*matrix_widgets, classes="matrix-body")
+        body.set_styles(
+            f"""
+                 grid-size: {self.n_cols} {self.n_rows};
+            """
+        )
+        with Grid(classes="matrix-grid"):
+            yield header
+            yield body
 
 
 class VolaSkewChart(QuotesPlot):

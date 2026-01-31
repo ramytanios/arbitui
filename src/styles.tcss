@@ -75,7 +75,7 @@ VolaSkewChart {
 
 .arbitrage-cell {
   width: 100%;
-  height: 100%;
+  border: tall $secondary;
 }
 
 .period-cell {
@@ -85,11 +85,29 @@ VolaSkewChart {
   height: 100%;
 }
 
-.matrix-grid {
-  overflow: auto auto;
+.error-cell {
+  background: $error
+}
+
+.success-cell {
+  background: $success
 }
 
 .highlighted-cell {
-    border: vkey $secondary;
-    background: $secondary;
+  background: $secondary;
+}
+
+.matrix-grid {
+  grid-size: 1 2;
+  grid-rows: 1 1fr;
+}
+
+.matrix-body {
+  overflow: auto auto;
+  grid-columns: 1fr;
+  grid-rows: 1;
+}
+
+.matrix-header {
+  grid-rows: 1;
 }

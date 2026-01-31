@@ -13,6 +13,7 @@ from textual.suggester import Suggester
 from textual.widget import Widget
 from textual.widgets import Button, Input, Label, Select
 from textual.widgets._select import SelectOverlay
+from textual.widgets._static import Static
 from textual_autocomplete import PathAutoComplete
 from textual_plotext.plotext_plot import PlotextPlot
 
@@ -173,18 +174,12 @@ class ArbitrageCell(Widget):
         self,
         tenor: Period,
         expiry: Period,
-        arbitrage: dtos.ArbitrageCheck,
         *args,
         **kwargs,
     ):
         self.tenor = tenor
         self.expiry = expiry
-        self.arbitrage = arbitrage
         super().__init__(*args, **kwargs)
 
     def compose(self) -> ComposeResult:
-        match self.arbitrage.arbitrage:
-            case None:
-                yield Label(variant="success", classes="arbitrage-cell")
-            case _:
-                yield Label(variant="error", classes="arbitrage-cell")
+        yield Static()

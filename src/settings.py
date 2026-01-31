@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     max_requests_in_flight: int = 512
     vol_sampling_cache_ttl: int = 360
     bulk_arbitrage_matrix: bool = True
-    show_version: bool = True
+    ws_heartbeat_seconds: int = 3
 
     model_config = SettingsConfigDict(env_prefix="arbitui_")
 

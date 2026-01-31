@@ -43,7 +43,7 @@ async def _rpc_call[T: BaseModel](
     remote_url: str,
     kls: Type[T],
 ) -> T:
-    logger.info(f"rpc call method: {method}")
+    logger.info(f"rpc call method: {method.value}")
     request = RpcRequest(method=method.value, params=params, id=str(uuid.uuid4()))
     json = request.model_dump(by_alias=True, mode="json")
     async with session.post(remote_url, json=json) as response:

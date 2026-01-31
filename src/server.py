@@ -51,9 +51,10 @@ async def websocket_endpoint(ws: WebSocket):
 
     rpc_url = settings.rpc_url
 
-    ctx = db.Context(settings.home / "arbitui.db")
+    db_path = settings.home / "arbitui.db"
+    ctx = db.Context(db_path)
 
-    logger.info("initializing database ..")
+    logger.info(f"initializing database at {db_path} ..")
     await db.init_db(ctx)
 
     async def recv_loop():

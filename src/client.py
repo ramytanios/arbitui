@@ -33,6 +33,7 @@ from message import (
     client_msg_adapter,
     server_msg_adapter,
 )
+from settings import settings
 from theme import rates_terminal_theme
 from widgets import (
     ArbitrageCell,
@@ -52,7 +53,7 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
             while True:
                 try:
                     await q_out.put(Ping())
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(settings.ws_heartbeat_seconds)
                 except Exception as e:
                     log.error(f"sending heartbeat failed: {e}")
 
@@ -257,14 +258,12 @@ class ArbitrageGrid(Widget, can_focus=True):
             elems.append(PeriodCell(expiry))
             for tenor in self.tenors:
                 if arb := by_rate.get((tenor, expiry)):
-                    id = f"T{tenor}E{expiry}"
-                    match arb.arbitrage:
-                        case None:
-                            css = "success-cell"
-                        case _:
-                            css = "error-cell"
+                    css = "success-cell" if arb.arbitrage is not None else "error-cell"
                     cell = ArbitrageCell(
-                        tenor, expiry, id=id, classes=f"arbitrage-cell {css}"
+                        tenor,
+                        expiry,
+                        id=f"T{tenor}E{expiry}",
+                        classes=f"arbitrage-cell {css}",
                     )
                     elems.append(cell)
         return elems
@@ -317,17 +316,9 @@ class ArbitrageGrid(Widget, can_focus=True):
         header_widgets = self.widgets[: self.n_cols]
         matrix_widgets = self.widgets[self.n_cols :]
         header = Grid(*header_widgets, classes="matrix-header")
-        header.set_styles(
-            f"""
-                 grid-size: {self.n_cols};
-            """
-        )
+        header.set_styles(f"grid-size: {self.n_cols};")
         body = Grid(*matrix_widgets, classes="matrix-body")
-        body.set_styles(
-            f"""
-                 grid-size: {self.n_cols} {self.n_rows};
-            """
-        )
+        body.set_styles(f"grid-size: {self.n_cols} {self.n_rows};")
         with Grid(classes="matrix-grid"):
             yield header
             yield body

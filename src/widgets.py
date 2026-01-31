@@ -152,7 +152,7 @@ class QuotesPlot(PlotextPlot, can_focus=True):
             self._replot(new_state)
 
 
-class EmptyCell(Label):
+class EmptyCell(Static):
     pass
 
 
@@ -167,7 +167,7 @@ class PeriodCell(Widget):
         )
 
 
-class ArbitrageCell(Widget):
+class ArbitrageCell(Static):
     __match_args__ = ("tenor", "expiry")
 
     def __init__(
@@ -180,6 +180,3 @@ class ArbitrageCell(Widget):
         self.tenor = tenor
         self.expiry = expiry
         super().__init__(*args, **kwargs)
-
-    def compose(self) -> ComposeResult:
-        yield Static()

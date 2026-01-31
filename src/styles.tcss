@@ -106,6 +106,7 @@ VolaSkewChart {
   overflow: auto auto;
   grid-columns: 1fr;
   grid-rows: 1;
+  scrollbar-size-vertical: 1;
 }
 
 .matrix-header {

@@ -52,7 +52,7 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
         async def send_heartbeat():
             while True:
                 try:
-                    await q_out.put(Ping())
+                    await ws.send(client_msg_adapter.dump_json(Ping()), text=True)
                     await asyncio.sleep(settings.ws_heartbeat_seconds)
                 except Exception as e:
                     log.error(f"sending heartbeat failed: {e}")

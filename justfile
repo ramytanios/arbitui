@@ -6,7 +6,7 @@ repl:
 
 [working-directory('src')]
 run-server:
-    uv run uvicorn server:app
+    uv run uvicorn server:app --timeout-graceful-shutdown 0
 
 [working-directory('src')]
 console-tui:

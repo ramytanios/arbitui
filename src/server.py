@@ -49,8 +49,6 @@ async def websocket_endpoint(ws: WebSocket):
     q_in = Queue[ClientMsg]()
     q_out = Queue[ServerMsg]()
 
-    rpc_url = settings.rpc_url
-
     db_path = settings.home / "arbitui.db"
     ctx = db.Context(db_path)
 
@@ -90,41 +88,41 @@ async def websocket_endpoint(ws: WebSocket):
         return Rates(currency=ccy, libor_rates=libor_rates, swap_rates=swap_rates)
 
     async def get_arbitrage_matrix(
-        ccy: str, vol: dtos.VolatilityCube
+        ccy: str, vol: dtos.VolatilityCube, handler: Handler
     ) -> List[Tuple[dtos.Period, dtos.Period, dtos.ArbitrageCheck]]:
-        async with aiohttp.ClientSession() as session:
-            handler = Handler(rpc_url, session, ctx)
+        if not settings.bulk_arbitrage_matrix:
+            Q = Queue[Tuple[dtos.Period, dtos.Period, dtos.ArbitrageCheck]]()
 
-            if not settings.bulk_arbitrage_matrix:
-                checks = []
+            async def impl(tenor: dtos.Period, expiry: dtos.Period):
+                check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
+                await Q.put((tenor, expiry, check))
 
-                async def impl(tenor: dtos.Period, expiry: dtos.Period):
-                    check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
-                    checks.append((tenor, expiry, check))
+            n = 0
+            async with asyncio.TaskGroup() as tg:
+                for tenor, surface in vol.cube.items():
+                    for expiry in surface.surface:
+                        tg.create_task(impl(tenor, expiry))
+                        n += 1
+            return [Q.get_nowait() for _ in range(n)]
 
-                async with asyncio.TaskGroup() as tg:
-                    for tenor, surface in vol.cube.items():
-                        for expiry in surface.surface:
-                            tg.create_task(impl(tenor, expiry))
-                return checks
-            else:
-                rsp = await handler.arbitrage_matrix(t, vol, ccy)
-                return [
-                    (t, e, dtos.ArbitrageCheck(arbitrage=a)) for t, e, a in rsp.matrix
-                ]
+        else:
+            rsp = await handler.arbitrage_matrix(t, vol, ccy)
+            return [(t, e, dtos.ArbitrageCheck(arbitrage=a)) for t, e, a in rsp.matrix]
 
     async def get_vol_sampling(
-        ccy: str, vol: dtos.VolatilityCube, tenor: dtos.Period, expiry: dtos.Period
+        ccy: str,
+        vol: dtos.VolatilityCube,
+        tenor: dtos.Period,
+        expiry: dtos.Period,
+        handler: Handler,
     ) -> dtos.VolSampling:
-        async with aiohttp.ClientSession() as session:
-            handler = Handler(rpc_url, session, ctx)
-            return await handler.vol_sampling(t, vol, ccy, tenor, expiry)
+        return await handler.vol_sampling(t, vol, ccy, tenor, expiry)
 
     async def log_notify_error(msg: str):
         logger.exception(msg)
         await q_out.put(Notification(msg=msg, severity=Severity.ERROR))
 
-    async def handle_client_msg(msg: ClientMsg):
+    async def handle_client_msg(msg: ClientMsg, handler: Handler):
         match msg:
             case Ping():
                 logger.info("ping received")
@@ -163,7 +161,7 @@ async def websocket_endpoint(ws: WebSocket):
                         await log_notify_error("failed to return rates")
 
                     try:
-                        matrix = await get_arbitrage_matrix(ccy, vol)
+                        matrix = await get_arbitrage_matrix(ccy, vol, handler)
                         await q_out.put(ArbitrageMatrix(currency=ccy, matrix=matrix))
                     except Exception:
                         await log_notify_error("failed to return arbitrage matrix")
@@ -178,7 +176,9 @@ async def websocket_endpoint(ws: WebSocket):
                     tenor = list(vol.cube.keys())[0]
                     expiry = list(vol.cube[tenor].surface.keys())[0]
                     try:
-                        samples = await get_vol_sampling(ccy, vol, tenor, expiry)
+                        samples = await get_vol_sampling(
+                            ccy, vol, tenor, expiry, handler
+                        )
                         await q_out.put(
                             VolSamples(
                                 currency=ccy,
@@ -208,7 +208,7 @@ async def websocket_endpoint(ws: WebSocket):
 
             case GetArbitrageMatrix(currency=ccy, vol_cube=vol):
                 try:
-                    matrix = await get_arbitrage_matrix(ccy, vol)
+                    matrix = await get_arbitrage_matrix(ccy, vol, handler)
                     msg_out = ArbitrageMatrix(currency=ccy, matrix=matrix)
                     await q_out.put(msg_out)
                 except Exception as e:
@@ -217,22 +217,18 @@ async def websocket_endpoint(ws: WebSocket):
             case GetArbitrageCheck(
                 currency=ccy, vol_cube=vol, tenor=tenor, expiry=expiry
             ):
-                async with aiohttp.ClientSession() as session:
-                    try:
-                        handler = Handler(rpc_url, session, ctx)
-                        check = await handler.arbitrage_check(
-                            t, vol, ccy, tenor, expiry
-                        )
-                        msg_out = ArbitrageCheck(
-                            currency=ccy, tenor=tenor, expiry=expiry, check=check
-                        )
-                        await q_out.put(msg_out)
-                    except Exception as e:
-                        logger.exception(f"failed to handle arbitrage request: {e}")
+                try:
+                    check = await handler.arbitrage_check(t, vol, ccy, tenor, expiry)
+                    msg_out = ArbitrageCheck(
+                        currency=ccy, tenor=tenor, expiry=expiry, check=check
+                    )
+                    await q_out.put(msg_out)
+                except Exception as e:
+                    logger.exception(f"failed to handle arbitrage request: {e}")
 
             case GetVolSamples(currency=ccy, vol_cube=vol, tenor=tenor, expiry=expiry):
                 try:
-                    samples = await get_vol_sampling(ccy, vol, tenor, expiry)
+                    samples = await get_vol_sampling(ccy, vol, tenor, expiry, handler)
                     msg_out = VolSamples(
                         currency=ccy, tenor=tenor, expiry=expiry, samples=samples
                     )
@@ -241,17 +237,23 @@ async def websocket_endpoint(ws: WebSocket):
                     logger.exception(f"failed to handle vol samples request: {e}")
 
     async def handle_client_msg_loop():
-        while True:
-            try:
-                msg = await q_in.get()
-                await handle_client_msg(msg)
-            except Exception as e:
-                logger.exception(f"exception in handling client message: {e}")
+        async with aiohttp.ClientSession() as session:
+            handler = Handler(settings.rpc_url, session, ctx)
+            while True:
+                try:
+                    msg = await q_in.get()
+                    await handle_client_msg(msg, handler)
+                except Exception as e:
+                    logger.exception(f"exception in handling client message: {e}")
 
-    async with TaskGroup() as tg:
-        tg.create_task(send_loop())
-        tg.create_task(recv_loop())
-        tg.create_task(handle_client_msg_loop())
+    try:
+        async with TaskGroup() as tg:
+            tg.create_task(send_loop())
+            tg.create_task(recv_loop())
+            tg.create_task(handle_client_msg_loop())
+    except* Exception as e:
+        logger.exception(f"ws connection exception in task group: {e.exceptions}")
+        await ws.close()
 
 
 app = Starlette(routes=[WebSocketRoute("/ws", websocket_endpoint)])

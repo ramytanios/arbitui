@@ -207,52 +207,38 @@ class ArbitrageGrid(Widget, can_focus=True):
     n_cols: reactive[int] = reactive(0)
     n_rows: reactive[int] = reactive(0)
 
-    def _curr_loc(self) -> Optional[Tuple[int, int]]:
-        if curr := self.selected_pair:
-            return (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
+    Loc = Tuple[int, int]
 
-    def _pair_from_loc(self, loc: Tuple[int, int]):
-        return (self.tenors[loc[0]], self.expiries[loc[1]])
+    def _mv_curr_loc(self, func: Callable[[Loc], Loc]) -> None:
+        if curr := self.selected_pair:
+            curr_loc = (self.tenors.index(curr[0]), self.expiries.index(curr[1]))
+            target_loc = func(curr_loc)
+            target = (self.tenors[target_loc[0]], self.expiries[target_loc[1]])
+            self.selected_pair = target
 
     def action_cell_next(self) -> None:
-        if curr_loc := self._curr_loc():
-            next_loc = (min(curr_loc[0] + 1, len(self.tenors) - 1), curr_loc[1])
-            self.selected_pair = self._pair_from_loc(next_loc)
+        self._mv_curr_loc(lambda loc: (min(loc[0] + 1, len(self.tenors) - 1), loc[1]))
 
     def action_cell_prev(self) -> None:
-        if curr_loc := self._curr_loc():
-            prev_loc = (max(curr_loc[0] - 1, 0), curr_loc[1])
-            self.selected_pair = self._pair_from_loc(prev_loc)
+        self._mv_curr_loc(lambda loc: (max(loc[0] - 1, 0), loc[1]))
 
     def action_cell_down(self) -> None:
-        if curr_loc := self._curr_loc():
-            down_loc = (curr_loc[0], min(curr_loc[1] + 1, len(self.expiries) - 1))
-            self.selected_pair = self._pair_from_loc(down_loc)
+        self._mv_curr_loc(lambda loc: (loc[0], min(loc[1] + 1, len(self.expiries) - 1)))
 
     def action_cell_up(self) -> None:
-        if curr_loc := self._curr_loc():
-            up_loc = (curr_loc[0], max(curr_loc[1] - 1, 0))
-            self.selected_pair = self._pair_from_loc(up_loc)
+        self._mv_curr_loc(lambda loc: (loc[0], max(loc[1] - 1, 0)))
 
     def action_start_of_row(self) -> None:
-        if curr_loc := self._curr_loc():
-            target_loc = (0, curr_loc[1])
-            self.selected_pair = self._pair_from_loc(target_loc)
+        self._mv_curr_loc(lambda loc: (0, loc[1]))
 
     def action_end_of_row(self) -> None:
-        if curr_loc := self._curr_loc():
-            target_loc = (len(self.tenors) - 1, curr_loc[1])
-            self.selected_pair = self._pair_from_loc(target_loc)
+        self._mv_curr_loc(lambda loc: (len(self.tenors) - 1, loc[1]))
 
     def action_start_of_col(self) -> None:
-        if curr_loc := self._curr_loc():
-            target_loc = (curr_loc[0], 0)
-            self.selected_pair = self._pair_from_loc(target_loc)
+        self._mv_curr_loc(lambda loc: (loc[0], 0))
 
     def action_end_of_col(self) -> None:
-        if curr_loc := self._curr_loc():
-            target_loc = (curr_loc[0], len(self.expiries) - 1)
-            self.selected_pair = self._pair_from_loc(target_loc)
+        self._mv_curr_loc(lambda loc: (loc[0], len(self.expiries) - 1))
 
     def compute_widgets(self) -> List[Widget]:
         by_rate = {}

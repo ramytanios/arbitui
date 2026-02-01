@@ -10,6 +10,7 @@ from typing import List, Tuple
 import aiohttp
 from loguru import logger
 from pydantic import ValidationError
+from pydantic_core._pydantic_core import PydanticSerializationError
 from starlette.applications import Starlette
 from starlette.routing import WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -57,27 +58,29 @@ async def websocket_endpoint(ws: WebSocket):
     await db.init_db(ctx)
 
     async def recv_loop():
-        try:
-            async for js in ws.iter_json():
+        async for js in ws.iter_json():
+            try:
                 msg = client_msg_adapter.validate_python(js)
                 await q_in.put(msg)
-        except WebSocketDisconnect:
-            logger.exception("websocket disconnected")
-            raise
-        except ValidationError as e:
-            logger.exception(f"failed to decode client message: {e}")
-        except Exception as e:
-            logger.exception(f"exception in receive loop: {e}")
-            raise
+            except WebSocketDisconnect:
+                logger.exception("websocket disconnected")
+                raise
+            except ValidationError as e:
+                logger.exception(f"failed to decode client message: {e}")
+            except Exception as e:
+                logger.exception(f"exception in receive loop: {e}")
+                raise
 
     async def send_loop():
-        try:
-            while True:
+        while True:
+            try:
                 msg = await q_out.get()
                 await ws.send_json(server_msg_adapter.dump_python(msg, mode="json"))
-        except Exception as e:
-            logger.exception(f"exception in send loop: {e}")
-            raise
+            except PydanticSerializationError as e:
+                logger.exception(f"failed to serialize message in send loop: {e}")
+            except Exception as e:
+                logger.exception(f"exception in send loop: {e}")
+                raise
 
     async def get_conventions(ccy: str) -> Conventions:
         conventions = await db.get_conventions(ccy, ctx)
@@ -240,12 +243,12 @@ async def websocket_endpoint(ws: WebSocket):
     async def handle_client_msg_loop():
         async with aiohttp.ClientSession() as session:
             handler = Handler(settings.rpc_url, session, ctx)
-            try:
-                while True:
+            while True:
+                try:
                     msg = await q_in.get()
                     await handle_client_msg(msg, handler)
-            except Exception as e:
-                logger.exception(f"exception in handling client message: {e}")
+                except Exception as e:
+                    logger.exception(f"exception in handling client message: {e}")
 
     try:
         async with TaskGroup() as tg:

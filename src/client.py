@@ -6,6 +6,7 @@ from typing import Callable, List, Optional, Tuple
 
 import websockets
 from pydantic import ValidationError
+from pydantic_core._pydantic_core import PydanticSerializationError
 from rich.text import Text
 from textual import log, on
 from textual.app import App, ComposeResult
@@ -51,38 +52,48 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
     async with websockets.connect("ws://localhost:8000/ws") as ws:
 
         async def send_heartbeat():
-            try:
-                while True:
+            while True:
+                try:
                     log.info("sent ping")
                     await ws.send(client_msg_adapter.dump_json(Ping()), text=True)
                     await asyncio.sleep(settings.ws_heartbeat_seconds)
-            except ConnectionClosed as e:
-                log.error(f"connection closed: {e}")
-            except Exception as e:
-                log.error(f"sending heartbeat failed: {e}")
+                except PydanticSerializationError as e:
+                    log.error(f"failed to serialize ping message: {e}")
+                except ConnectionClosed as e:
+                    log.error(f"connection closed: {e}")
+                    break
+                except Exception as e:
+                    log.error(f"sending heartbeat failed: {e}")
+                    break
 
         async def send_loop():
-            try:
-                while True:
+            while True:
+                try:
                     msg = await q_out.get()
                     await ws.send(client_msg_adapter.dump_json(msg), text=True)
                     log.info(f"sent ws message: {msg}")
-            except ConnectionClosed as e:
-                log.error(f"connection closed: {e}")
-            except Exception as e:
-                log.error(f"send loop failed: {e}")
+                except PydanticSerializationError as e:
+                    log.error(f"failed to serialize message in send loop: {e}")
+                except ConnectionClosed as e:
+                    log.error(f"connection closed: {e}")
+                    break
+                except Exception as e:
+                    log.error(f"send loop failed: {e}")
+                    break
 
         async def recv_loop():
-            try:
-                while True:
+            while True:
+                try:
                     msg = await ws.recv()
                     await q_in.put(server_msg_adapter.validate_json(msg))
-            except ValidationError as e:
-                log.error(f"failed to decode server message: {e}")
-            except ConnectionClosed as e:
-                log.error(f"connection closed: {e}")
-            except Exception as e:
-                log.error(f"recv loop failed: {e}")
+                except ValidationError as e:
+                    log.error(f"failed to decode server message: {e}")
+                except ConnectionClosed as e:
+                    log.error(f"connection closed: {e}")
+                    break
+                except Exception as e:
+                    log.error(f"recv loop failed: {e}")
+                    break
 
         try:
             async with asyncio.TaskGroup() as tg:
@@ -408,12 +419,12 @@ class Arbitui(App):
         self.theme = "rates-terminal"
 
     async def recv_loop(self):
-        try:
-            while True:
+        while True:
+            try:
                 msg = await self.q_in.get()
                 await self.handle_server_msg(msg)
-        except Exception as e:
-            log.error(f"exception in receive loop: {e}")
+            except Exception as e:
+                log.error(f"exception in receive loop: {e}")
 
     async def handle_server_msg(self, msg: ServerMsg):
         match msg:

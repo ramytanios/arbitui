@@ -15,6 +15,7 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Label, Select
+from websockets.exceptions import ConnectionClosed
 
 import dtos
 from message import (
@@ -50,31 +51,38 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
     async with websockets.connect("ws://localhost:8000/ws") as ws:
 
         async def send_heartbeat():
-            while True:
-                try:
+            try:
+                while True:
+                    log.info("sent ping")
                     await ws.send(client_msg_adapter.dump_json(Ping()), text=True)
                     await asyncio.sleep(settings.ws_heartbeat_seconds)
-                except Exception as e:
-                    log.error(f"sending heartbeat failed: {e}")
+            except ConnectionClosed as e:
+                log.error(f"connection closed: {e}")
+            except Exception as e:
+                log.error(f"sending heartbeat failed: {e}")
 
         async def send_loop():
-            while True:
-                try:
+            try:
+                while True:
                     msg = await q_out.get()
                     await ws.send(client_msg_adapter.dump_json(msg), text=True)
                     log.info(f"sent ws message: {msg}")
-                except Exception as e:
-                    log.error(f"send loop failed: {e}")
+            except ConnectionClosed as e:
+                log.error(f"connection closed: {e}")
+            except Exception as e:
+                log.error(f"send loop failed: {e}")
 
         async def recv_loop():
-            while True:
-                try:
+            try:
+                while True:
                     msg = await ws.recv()
                     await q_in.put(server_msg_adapter.validate_json(msg))
-                except ValidationError as e:
-                    log.error(f"failed to decode server message: {e}")
-                except Exception as e:
-                    log.error(f"recv loop failed: {e}")
+            except ValidationError as e:
+                log.error(f"failed to decode server message: {e}")
+            except ConnectionClosed as e:
+                log.error(f"connection closed: {e}")
+            except Exception as e:
+                log.error(f"recv loop failed: {e}")
 
         try:
             async with asyncio.TaskGroup() as tg:
@@ -414,12 +422,12 @@ class Arbitui(App):
         self.theme = "rates-terminal"
 
     async def recv_loop(self):
-        while True:
-            try:
+        try:
+            while True:
                 msg = await self.q_in.get()
                 await self.handle_server_msg(msg)
-            except Exception as e:
-                log.error(f"exception in receive loop: {e}")
+        except Exception as e:
+            log.error(f"exception in receive loop: {e}")
 
     async def handle_server_msg(self, msg: ServerMsg):
         match msg:
@@ -444,13 +452,13 @@ class Arbitui(App):
                 self.notify(message=msg, severity=severity.to_textual())
 
     async def state_updates_loop(self):
-        while True:
-            fn = await self.q_state_updates.get()
-            try:
+        try:
+            while True:
+                fn = await self.q_state_updates.get()
                 self.state = fn(self.state)
-            except Exception as e:
-                log.error(f"state update {fn} failed: {e}")
-                raise  # crash app on purpose
+        except Exception as e:
+            log.error(f"state update loop failed: {e}")
+            raise  # crash app on purpose
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)

@@ -71,13 +71,13 @@ async def websocket_endpoint(ws: WebSocket):
             raise
 
     async def send_loop():
-        while True:
-            try:
+        try:
+            while True:
                 msg = await q_out.get()
                 await ws.send_json(server_msg_adapter.dump_python(msg, mode="json"))
-            except Exception as e:
-                logger.exception(f"exception in send loop: {e}")
-                raise
+        except Exception as e:
+            logger.exception(f"exception in send loop: {e}")
+            raise
 
     async def get_conventions(ccy: str) -> Conventions:
         conventions = await db.get_conventions(ccy, ctx)
@@ -240,12 +240,12 @@ async def websocket_endpoint(ws: WebSocket):
     async def handle_client_msg_loop():
         async with aiohttp.ClientSession() as session:
             handler = Handler(settings.rpc_url, session, ctx)
-            while True:
-                try:
+            try:
+                while True:
                     msg = await q_in.get()
                     await handle_client_msg(msg, handler)
-                except Exception as e:
-                    logger.exception(f"exception in handling client message: {e}")
+            except Exception as e:
+                logger.exception(f"exception in handling client message: {e}")
 
     try:
         async with TaskGroup() as tg:

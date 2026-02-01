@@ -2,6 +2,7 @@ import asyncio
 import json
 from asyncio.queues import Queue
 from asyncio.taskgroups import TaskGroup
+from contextlib import asynccontextmanager
 from datetime import datetime
 from json.decoder import JSONDecodeError
 from typing import List, Tuple
@@ -252,8 +253,16 @@ async def websocket_endpoint(ws: WebSocket):
             tg.create_task(recv_loop())
             tg.create_task(handle_client_msg_loop())
     except* Exception as e:
-        logger.exception(f"ws connection exception in task group: {e.exceptions}")
-        await ws.close()
+        err = f"ws connection exception in task group: {e.exceptions}"
+        logger.exception(err)
+        await ws.close(reason=err)
 
 
-app = Starlette(routes=[WebSocketRoute("/ws", websocket_endpoint)])
+@asynccontextmanager
+async def lifespan(_):
+    settings.home.mkdir(parents=True, exist_ok=True)
+    logger.info(f"using settings {settings}")
+    yield
+
+
+app = Starlette(routes=[WebSocketRoute("/ws", websocket_endpoint)], lifespan=lifespan)

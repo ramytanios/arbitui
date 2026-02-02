@@ -2,9 +2,10 @@ import asyncio
 from asyncio import Queue
 from asyncio.queues import QueueFull
 from dataclasses import dataclass, replace
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Literal, Optional, Tuple
 
 import websockets
+from anyio._core._synchronization import Event
 from pydantic import ValidationError
 from pydantic_core._pydantic_core import PydanticSerializationError
 from rich.text import Text
@@ -48,22 +49,43 @@ from widgets import (
 )
 
 
-async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
-    async with websockets.connect("ws://localhost:8000/ws") as ws:
+@dataclass(frozen=True)
+class ToastMessage:
+    msg: str
+    severity: Literal["error", "warning", "information"]
+
+
+async def ws_async(
+    q_in: Queue[ServerMsg], q_out: Queue[ClientMsg], q_toast: Queue[ToastMessage]
+) -> None:
+    async with websockets.connect(settings.server_ws_url) as ws:
+
+        async def on_connection_closed(e: ConnectionClosed):
+            err = "ws connection closed"
+            log.error(f"{err}: {e}")
+            await q_toast.put(ToastMessage(err, "warning"))
+
+        async def on_exception(e: Exception, msg: str):
+            log.error(f"{msg}: {e}")
+            await q_toast.put(ToastMessage(msg, "warning"))
+
+        async def on_exception_group(e: ExceptionGroup, msg: str):
+            log.error(f"{msg}: {e.exceptions}")
+            await q_toast.put(ToastMessage(msg, "warning"))
 
         async def send_heartbeat():
             while True:
                 try:
-                    log.info("sent ping")
                     await ws.send(client_msg_adapter.dump_json(Ping()), text=True)
+                    log.info("sent ping")
                     await asyncio.sleep(settings.ws_heartbeat_seconds)
                 except PydanticSerializationError as e:
                     log.error(f"failed to serialize ping message: {e}")
                 except ConnectionClosed as e:
-                    log.error(f"connection closed: {e}")
+                    await on_connection_closed(e)
                     break
                 except Exception as e:
-                    log.error(f"sending heartbeat failed: {e}")
+                    await on_exception(e, "sending heartbeat failed")
                     break
 
         async def send_loop():
@@ -75,10 +97,10 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
                 except PydanticSerializationError as e:
                     log.error(f"failed to serialize message in send loop: {e}")
                 except ConnectionClosed as e:
-                    log.error(f"connection closed: {e}")
+                    await on_connection_closed(e)
                     break
                 except Exception as e:
-                    log.error(f"send loop failed: {e}")
+                    await on_exception(e, "send loop failed")
                     break
 
         async def recv_loop():
@@ -89,10 +111,10 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
                 except ValidationError as e:
                     log.error(f"failed to decode server message: {e}")
                 except ConnectionClosed as e:
-                    log.error(f"connection closed: {e}")
+                    await on_connection_closed(e)
                     break
                 except Exception as e:
-                    log.error(f"recv loop failed: {e}")
+                    await on_exception(e, "receive loop failed")
                     break
 
         try:
@@ -101,7 +123,7 @@ async def ws_async(q_in: Queue[ServerMsg], q_out: Queue[ClientMsg]) -> None:
                 tg.create_task(send_loop())
                 tg.create_task(recv_loop())
         except* Exception as e:
-            log.error(f"WS connection failed in task group: ${e.exceptions}")
+            await on_exception_group(e, "WS connection failed in task group")
 
 
 @dataclass
@@ -397,9 +419,12 @@ class Arbitui(App):
 
     q_in = Queue[ServerMsg]()
     q_out = Queue[ClientMsg]()
+    q_toast = Queue[ToastMessage]()
     q_state_updates = Queue[Callable[[State], State]]()
 
     state: reactive[State] = reactive(State())
+
+    data_loaded = Event()
 
     def action_jump_to_matrix(self) -> None:
         matrix = self.query_one(ArbitrageGrid)
@@ -412,11 +437,17 @@ class Arbitui(App):
             log.error(f"state update Q is full: {e}")
 
     async def on_mount(self) -> None:
-        self.run_worker(ws_async(self.q_in, self.q_out))
+        self.run_worker(ws_async(self.q_in, self.q_out, self.q_toast))
         self.run_worker(self.recv_loop())
         self.run_worker(self.state_updates_loop())
+        self.run_worker(self.toast_loop())
         self.register_theme(rates_terminal_theme)
         self.theme = "rates-terminal"
+
+    async def toast_loop(self):
+        while True:
+            notif = await self.q_toast.get()
+            self.notify(notif.msg, severity=notif.severity)
 
     async def recv_loop(self):
         while True:
@@ -424,7 +455,7 @@ class Arbitui(App):
                 msg = await self.q_in.get()
                 await self.handle_server_msg(msg)
             except Exception as e:
-                log.error(f"exception in receive loop: {e}")
+                log.error(f"exception in loop handling server messages: {e}")
 
     async def handle_server_msg(self, msg: ServerMsg):
         match msg:
@@ -446,7 +477,9 @@ class Arbitui(App):
                 log.info(f"received vol cube currency {cube.currency}")
                 self.update_state(lambda s: replace(s, cube=cube))
             case Notification(msg=msg, severity=severity):
-                self.notify(message=msg, severity=severity.to_textual())
+                await self.q_toast.put(
+                    ToastMessage(msg=msg, severity=severity.to_textual())
+                )
 
     async def state_updates_loop(self):
         try:
@@ -476,12 +509,7 @@ class Arbitui(App):
             )
 
     async def on_file_input_file_changed(self, event: FileInput.FileChanged) -> None:
-        try:
-            await self.q_out.put(LoadCube(file_path=event.path))
-        except Exception as e:
-            self.notify(message=f"failed to handle fileinput event {e}")
-        else:
-            self.set_focus(self.query_one(RatesConventions))
+        await self.q_out.put(LoadCube(file_path=event.path))
 
 
 if __name__ == "__main__":

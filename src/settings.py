@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     home: Path = Path.home() / ".local" / "share" / "arbitui"
+    server_ws_url: str = "ws://localhost:8000/ws"
     rpc_url: str = "http://localhost:8090/rpc"
     file_search_path: str = "."
     max_requests_in_flight: int = 512

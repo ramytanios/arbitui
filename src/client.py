@@ -5,7 +5,6 @@ from dataclasses import dataclass, replace
 from typing import Callable, List, Literal, Optional, Tuple
 
 import websockets
-from anyio._core._synchronization import Event
 from pydantic import ValidationError
 from pydantic_core._pydantic_core import PydanticSerializationError
 from rich.text import Text
@@ -424,8 +423,6 @@ class Arbitui(App):
 
     state: reactive[State] = reactive(State())
 
-    data_loaded = Event()
-
     def action_jump_to_matrix(self) -> None:
         matrix = self.query_one(ArbitrageGrid)
         matrix.focus()
@@ -446,8 +443,8 @@ class Arbitui(App):
 
     async def toast_loop(self):
         while True:
-            notif = await self.q_toast.get()
-            self.notify(notif.msg, severity=notif.severity)
+            toast = await self.q_toast.get()
+            self.notify(toast.msg, severity=toast.severity)
 
     async def recv_loop(self):
         while True:

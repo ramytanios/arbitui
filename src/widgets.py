@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from anyio._core._fileio import Path
 from textual import on
@@ -19,6 +21,8 @@ from textual_plotext.plotext_plot import PlotextPlot
 
 import dtos
 from dtos import Period
+from settings import settings
+from transition import Point, get_easing_func, transition
 
 
 class _Suggester(Suggester):
@@ -95,11 +99,9 @@ class FileBar(Widget):
 class QuotesPlot(PlotextPlot, can_focus=True):
     @dataclass
     class State:
-        quoted_strikes: List[float]
-        quoted_vals: List[float]
-        strikes: List[float]
-        vals: List[float]
-        fwd: float
+        quotes: List[Point]
+        interp: List[Point]
+        forward: float
         tenor: dtos.Period
         expiry: dtos.Period
         arbitrage: Optional[dtos.Arbitrage]
@@ -112,6 +114,18 @@ class QuotesPlot(PlotextPlot, can_focus=True):
 
     state: reactive[Optional[State]] = reactive(None)
 
+    prev_curr_state: Tuple[Optional[State], Optional[State]] = (None, None)
+
+    def transition_state(self, source: State, target: State, t: float) -> State:
+        return self.State(
+            transition(source.quotes, target.quotes, t),
+            transition(source.interp, target.interp, t),
+            transition(source.forward, target.forward, t),
+            target.tenor,
+            target.expiry,
+            target.arbitrage,
+        )
+
     def _format_strike(self, k: float) -> str:
         return f"{k * 100:.2f}"
 
@@ -121,18 +135,29 @@ class QuotesPlot(PlotextPlot, can_focus=True):
     def _draw_forward(self, fwd: float) -> None:
         self.plt.vline(fwd, "gray")
 
-    def _replot(self, new_state: State) -> None:
+    def _replot_series(self, state: State) -> None:
         self.plt.clear_data()
-        self.plt.plot(new_state.strikes, new_state.vals, marker="braille")
-        self.plt.scatter(new_state.quoted_strikes, new_state.quoted_vals, marker="o")
-        xticks = new_state.quoted_strikes
+        self.plt.plot(
+            [p.x for p in state.interp],
+            [p.y for p in state.interp],
+            marker="braille",
+        )
+        self.plt.scatter(
+            [p.x for p in state.quotes],
+            [p.y for p in state.quotes],
+            marker="o",
+        )
+        self.refresh()
+
+    def _replot_axis(self, state: State) -> None:
+        xticks = [p.x for p in state.quotes]
         xlabels = list(map(self._format_strike, xticks))
         self.plt.xticks(xticks, xlabels)
-        self._draw_forward(new_state.fwd)
+        self._draw_forward(state.forward)
         if self.draw_hline_zero:
             self.plt.hline(1e-8, "orange")
-        rate_underlying = f"Θ={new_state.tenor},T={new_state.expiry}"
-        match new_state.arbitrage:
+        rate_underlying = f"Θ={state.tenor},T={state.expiry}"
+        match state.arbitrage:
             case None:
                 self.plt.title(f"{rate_underlying}: no arbitrage found")
             case dtos.LeftAsymptotic():
@@ -145,11 +170,33 @@ class QuotesPlot(PlotextPlot, can_focus=True):
                 )
                 self.plt.vline(left_strike, "red")
                 self.plt.vline(right_strike, "red")
-        self.refresh()
 
-    def watch_state(self, new_state: Optional[State]) -> None:
+    async def watch_state(self, new_state: Optional[State]) -> None:
         if new_state:
-            self._replot(new_state)
+            (_, curr) = self.prev_curr_state
+            self.prev_curr_state = (curr, new_state)
+
+            # if no previous state, render immediately
+            if curr is None:
+                self._replot_series(new_state)
+                self._replot_axis(new_state)
+                return
+
+            E = get_easing_func(settings.plot_easing_function)
+
+            start = time.perf_counter()
+            frame_dt = 1 / 30
+            while True:
+                elapsed = time.perf_counter() - start
+                u0 = elapsed / settings.plot_transition_duration_seconds
+                if u0 > 1.0:
+                    break
+                u = E(u0)
+                intermediate_state = self.transition_state(curr, new_state, u)
+                self._replot_series(intermediate_state)
+                await asyncio.sleep(frame_dt)
+
+            self._replot_axis(new_state)
 
 
 class EmptyCell(Static):

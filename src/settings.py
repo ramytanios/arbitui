@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     vol_sampling_cache_ttl: int = 360
     bulk_arbitrage_matrix: bool = True
     ws_heartbeat_seconds: int = 3
+    plot_transition_duration_seconds: float = 0.12
+    plot_easing_function: str = "cubic_in_out"
 
     model_config = SettingsConfigDict(env_prefix="arbitui_")
 

@@ -10,7 +10,7 @@ run-server:
 
 [working-directory('src')]
 console-tui:
-    uv run textual console
+    uv run textual console -x DEBUG
 
 [working-directory('src')]
 run-tui:

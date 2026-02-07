@@ -43,6 +43,7 @@ from widgets import (
     FileBar,
     FileInput,
     PeriodCell,
+    Point,
     QuotesPlot,
     RateSelect,
 )
@@ -76,7 +77,7 @@ async def ws_async(
             while True:
                 try:
                     await ws.send(client_msg_adapter.dump_json(Ping()), text=True)
-                    log.info("sent ping")
+                    log.debug("sent ping")
                     await asyncio.sleep(settings.ws_heartbeat_seconds)
                 except PydanticSerializationError as e:
                     log.error(f"failed to serialize ping message: {e}")
@@ -92,7 +93,7 @@ async def ws_async(
                 try:
                     msg = await q_out.get()
                     await ws.send(client_msg_adapter.dump_json(msg), text=True)
-                    log.info(f"sent ws message: {msg}")
+                    log.debug(f"sent ws message: {msg}")
                 except PydanticSerializationError as e:
                     log.error(f"failed to serialize message in send loop: {e}")
                 except ConnectionClosed as e:
@@ -384,20 +385,16 @@ class Body(Widget):
                 a for (t, e, a) in matrix.matrix if t == tenor and e == expiry
             )
             self.query_one(VolaSkewChart).state = VolaSkewChart.State(
-                samples.quoted_strikes,
-                samples.quoted_vols,
-                samples.strikes,
-                samples.vols,
+                [Point(*t) for t in zip(samples.quoted_strikes, samples.quoted_vols)],
+                [Point(*t) for t in zip(samples.strikes, samples.vols)],
                 samples.fwd,
                 tenor,
                 expiry,
                 arbitrage.arbitrage,
             )
             self.query_one(DensityChart).state = DensityChart.State(
-                samples.quoted_strikes,
-                samples.quoted_pdf,
-                samples.strikes,
-                samples.pdf,
+                [Point(*t) for t in zip(samples.quoted_strikes, samples.quoted_pdf)],
+                [Point(*t) for t in zip(samples.strikes, samples.pdf)],
                 samples.fwd,
                 tenor,
                 expiry,

@@ -185,7 +185,7 @@ class QuotesPlot(PlotextPlot, can_focus=True):
             E = get_easing_func(settings.plot_easing_function)
 
             start = time.perf_counter()
-            frame_dt = 1 / 30
+            frame_dt = 1 / 10 * settings.plot_transition_duration_seconds
             while True:
                 elapsed = time.perf_counter() - start
                 u0 = elapsed / settings.plot_transition_duration_seconds

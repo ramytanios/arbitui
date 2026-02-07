@@ -48,12 +48,39 @@ def transition(source, target, t):
 # easing functions
 
 
-def cubic_in(t: float) -> float:
+def ease_in_cubic(t: float) -> float:
     return t * t * t
 
 
-def cubic_in_out(t: float) -> float:
+def ease_in_out_cubic(t: float) -> float:
     return 4 * t * t * t if t < 0.5 else 1 - ((-2 * t + 2) ** 3) / 2
+
+
+def ease_out_bounce(t: float) -> float:
+    t = max(0.0, min(1.0, t))  # clamp
+
+    n1 = 7.5625
+    d1 = 2.75
+
+    if t < 1 / d1:
+        return n1 * t * t
+    elif t < 2 / d1:
+        t -= 1.5 / d1
+        return n1 * t * t + 0.75
+    elif t < 2.5 / d1:
+        t -= 2.25 / d1
+        return n1 * t * t + 0.9375
+    else:
+        t -= 2.625 / d1
+        return n1 * t * t + 0.984375
+
+
+def ease_in_out_bounce(t: float) -> float:
+    return (
+        (1 - ease_out_bounce(1 - 2 * t)) / 2
+        if t < 0.5
+        else (1 + ease_out_bounce(2 * t - 1)) / 2
+    )
 
 
 # TODO  add more
@@ -61,9 +88,13 @@ def cubic_in_out(t: float) -> float:
 
 def get_easing_func(name: str) -> Callable[[float], float]:
     match name:
-        case "cubic_in":
-            return cubic_in
-        case "cubic_in_out":
-            return cubic_in_out
+        case "in_cubic":
+            return ease_in_cubic
+        case "in_out_cubic":
+            return ease_in_out_cubic
+        case "out_bounce":
+            return ease_out_bounce
+        case "in_out_bounce":
+            return ease_in_out_bounce
         case _:
             raise Exception(f"wrong easing function {name}")

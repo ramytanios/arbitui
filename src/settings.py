@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     bulk_arbitrage_matrix: bool = True
     ws_heartbeat_seconds: int = 3
     plot_transition_duration_seconds: float = 0.10
-    plot_easing_function: str = "cubic_in_out"
+    plot_easing_function: str = "in_out_cubic"
 
     model_config = SettingsConfigDict(env_prefix="arbitui_")
 

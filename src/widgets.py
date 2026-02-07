@@ -135,7 +135,7 @@ class QuotesPlot(PlotextPlot, can_focus=True):
     def _draw_forward(self, fwd: float) -> None:
         self.plt.vline(fwd, "gray")
 
-    def _replot_series(self, state: State) -> None:
+    def _draw_series(self, state: State) -> None:
         self.plt.clear_data()
         self.plt.plot(
             [p.x for p in state.interp],
@@ -149,7 +149,7 @@ class QuotesPlot(PlotextPlot, can_focus=True):
         )
         self.refresh()
 
-    def _replot_axis(self, state: State) -> None:
+    def _draw_axis(self, state: State) -> None:
         xticks = [p.x for p in state.quotes]
         xlabels = list(map(self._format_strike, xticks))
         self.plt.xticks(xticks, xlabels)
@@ -178,8 +178,8 @@ class QuotesPlot(PlotextPlot, can_focus=True):
 
             # if no previous state, render immediately
             if curr is None:
-                self._replot_series(new_state)
-                self._replot_axis(new_state)
+                self._draw_series(new_state)
+                self._draw_axis(new_state)
                 return
 
             E = get_easing_func(settings.plot_easing_function)
@@ -189,14 +189,14 @@ class QuotesPlot(PlotextPlot, can_focus=True):
             while True:
                 elapsed = time.perf_counter() - start
                 u0 = elapsed / settings.plot_transition_duration_seconds
+                u = E(min(max(0.0, u0), 1.0))
+                intermediate_state = self.transition_state(curr, new_state, u)
+                self._draw_series(intermediate_state)
                 if u0 > 1.0:
                     break
-                u = E(u0)
-                intermediate_state = self.transition_state(curr, new_state, u)
-                self._replot_series(intermediate_state)
                 await asyncio.sleep(frame_dt)
 
-            self._replot_axis(new_state)
+            self._draw_axis(new_state)
 
 
 class EmptyCell(Static):

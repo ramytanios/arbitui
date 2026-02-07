@@ -119,7 +119,8 @@ class QuotesPlot(PlotextPlot, can_focus=True):
     def transition_state(self, source: State, target: State, t: float) -> State:
         return self.State(
             transition(source.quotes, target.quotes, t),
-            transition(source.interp, target.interp, t),
+            target.interp,
+            # transition(source.interp, target.interp, t),
             transition(source.forward, target.forward, t),
             target.tenor,
             target.expiry,

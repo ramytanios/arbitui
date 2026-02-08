@@ -25,3 +25,6 @@ ws-client:
 
 tui-gif:
     vhs demo.tape
+
+socket:
+  socat - UNIX-CONNECT:/tmp/rates-scope.sock

@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Dict, Literal, Optional, Type
 
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 import dtos
 from settings import settings
@@ -64,7 +64,11 @@ class Socket:
         if reader := self._reader:
             while True:
                 line = await reader.readline()
-                rsp = RPCResponse.model_validate_json(line)
+                try:
+                    rsp = RPCResponse.model_validate_json(line)
+                except ValidationError as e:
+                    logger.warning(f"failed to validate messsage {line}: {e}")
+                    return
                 if (id := rsp.id) is not None:
                     fut = self._pending.pop(id, None)
                     if fut and not fut.done():
@@ -94,8 +98,21 @@ class Socket:
         if self._writer is not None:
             self._writer.close()
             await self._writer.wait_closed()
+
         self._reader = None
         self._writer = None
+
+        # fail all pending futures
+        for fut in self._pending.values():
+            if not fut.done():
+                fut.set_exception(RuntimeError("Socket closed"))
+
+        # needed if same socket is used multiple times like
+        # async with socket:
+        #   ...
+        # async with socket:
+        #   ...
+        self._pending.clear()
 
     async def call[T: BaseModel](self, request: RPCRequest, kls: Type[T]) -> T:
         await self.register_and_send(request)

@@ -9,29 +9,27 @@ Type "just run-tui"
 Enter
 Sleep 3s
 Type "eur"
+Enter
+Enter
 Sleep 3s
+Tab
+Sleep 3s 
+Type a 
+Sleep 3s
+Enter
+Sleep 3s 
+Type G
+Enter
+Sleep 3s 
+Type l
+Sleep 1s
+Type l
+Sleep 1s
+Type l
+Sleep 1s
+Enter
+Sleep 3s 
+Type "$" 
+Sleep 1s
 Enter 
-Enter
 Sleep 3s
-Type "a"
-Sleep 3s
-Type "G"
-Sleep 3s
-Type "l"
-Sleep 1s 
-Type "l"
-Sleep 1s 
-Type "l"
-Sleep 1s 
-Enter
-Sleep 6s
-Type "l"
-Sleep 1s 
-Enter
-Sleep 6s 
-Type "l"
-Sleep 1s 
-Enter
-Sleep 6s
-Type "g"
-Sleep 2s

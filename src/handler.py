@@ -1,33 +1,39 @@
-from asyncio.locks import Semaphore
+import uuid
 from datetime import date
+from typing import Type
 
 from aiocache.decorators import cached
-from aiohttp import ClientSession
+from loguru import logger
+from pydantic import BaseModel
 
 import db
 import dtos
-import lib
+from lib import Method, RPCRequest, Socket
 from settings import settings
 
 
 class Handler:
-    def __init__(
-        self,
-        rpc_url: str,
-        http_session: ClientSession,
-        db_ctx: db.Context,
-    ):
-        self._rpc_url = rpc_url
-        self._http_session = http_session
-        self._db_ctx = db_ctx
+    def __init__(self, socket: Socket, db_ctx: db.Context):
+        self.socket = socket
+        self.db_ctx = db_ctx
 
-        self.sem = Semaphore(settings.max_requests_in_flight)
+    async def _rpc_call[T: BaseModel](
+        self,
+        method: Method,
+        params: dtos.ArbitrageParams
+        | dtos.ArbitrageMatrixParams
+        | dtos.VolSamplingParams,
+        kls: Type[T],
+    ) -> T:
+        logger.info(f"rpc call method: {method.value}")
+        request = RPCRequest(method=method.value, params=params, id=str(uuid.uuid4()))
+        return await self.socket.call(request, kls)
 
     async def _market(self, volCube: dtos.VolatilityCube, ccy: str):
-        vol_conventions = await db.get_conventions(ccy, self._db_ctx)
+        vol_conventions = await db.get_conventions(ccy, self.db_ctx)
         libor_conventions = vol_conventions.libor_rate
         swap_conventions = vol_conventions.swap_rate
-        floating_rate = (await db.get_libor_rates(ccy, self._db_ctx))[
+        floating_rate = (await db.get_libor_rates(ccy, self.db_ctx))[
             swap_conventions[1].floating_rate
         ]
 
@@ -88,8 +94,7 @@ class Handler:
             expiry=expiry,
         )
 
-        async with self.sem:
-            return await lib.arbitrage_check(params, self._http_session, self._rpc_url)
+        return await self._rpc_call(Method.ARBITRAGE, params, dtos.ArbitrageCheck)
 
     async def arbitrage_matrix(
         self,
@@ -103,8 +108,9 @@ class Handler:
             t_ref=t, market=market, static=static, currency=ccy
         )
 
-        async with self.sem:
-            return await lib.arbitrage_matrix(params, self._http_session, self._rpc_url)
+        return await self._rpc_call(
+            Method.ARBITRAGE_MATRIX, params, dtos.ArbitrageMatrix
+        )
 
     @cached(ttl=settings.vol_sampling_cache_ttl, noself=True)
     async def vol_sampling(
@@ -129,5 +135,4 @@ class Handler:
             n_stdvs_tail=0,
         )
 
-        async with self.sem:
-            return await lib.vol_sampling(params, self._http_session, self._rpc_url)
+        return await self._rpc_call(Method.VOL_SAMPLING, params, dtos.VolSampling)

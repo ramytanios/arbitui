@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     home: Path = Path.home() / ".local" / "share" / "arbitui"
     server_ws_url: str = "ws://localhost:8000/ws"
     lib_socket_path: str = "/tmp/rates-scope.sock"
+    socket_timeout: int = 60
     file_search_path: str = "."
     max_requests_in_flight: int = 512
     vol_sampling_cache_ttl: int = 360

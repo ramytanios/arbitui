@@ -12,41 +12,22 @@ from lib import Method, RPCRequest, Socket
 from settings import settings
 
 
-async def _rpc_call[T: BaseModel](
-    method: Method,
-    params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams,
-    socket: Socket,
-    kls: Type[T],
-) -> T:
-    logger.info(f"rpc call method: {method.value}")
-    request = RPCRequest(method=method.value, params=params, id=str(uuid.uuid4()))
-    return await socket.call(request, kls)
-
-
-async def _arbitrage_check(
-    params: dtos.ArbitrageParams, socket: Socket
-) -> dtos.ArbitrageCheck:
-    return await _rpc_call(Method.ARBITRAGE, params, socket, dtos.ArbitrageCheck)
-
-
-async def _arbitrage_matrix(
-    params: dtos.ArbitrageMatrixParams, socket: Socket
-) -> dtos.ArbitrageMatrix:
-    return await _rpc_call(
-        Method.ARBITRAGE_MATRIX, params, socket, dtos.ArbitrageMatrix
-    )
-
-
-async def _vol_sampling(
-    params: dtos.VolSamplingParams, socket: Socket
-) -> dtos.VolSampling:
-    return await _rpc_call(Method.VOL_SAMPLING, params, socket, dtos.VolSampling)
-
-
 class Handler:
     def __init__(self, socket: Socket, db_ctx: db.Context):
         self.socket = socket
         self.db_ctx = db_ctx
+
+    async def _rpc_call[T: BaseModel](
+        self,
+        method: Method,
+        params: dtos.ArbitrageParams
+        | dtos.ArbitrageMatrixParams
+        | dtos.VolSamplingParams,
+        kls: Type[T],
+    ) -> T:
+        logger.info(f"rpc call method: {method.value}")
+        request = RPCRequest(method=method.value, params=params, id=str(uuid.uuid4()))
+        return await self.socket.call(request, kls)
 
     async def _market(self, volCube: dtos.VolatilityCube, ccy: str):
         vol_conventions = await db.get_conventions(ccy, self.db_ctx)
@@ -113,7 +94,7 @@ class Handler:
             expiry=expiry,
         )
 
-        return await _arbitrage_check(params, self.socket)
+        return await self._rpc_call(Method.ARBITRAGE, params, dtos.ArbitrageCheck)
 
     async def arbitrage_matrix(
         self,
@@ -127,7 +108,9 @@ class Handler:
             t_ref=t, market=market, static=static, currency=ccy
         )
 
-        return await _arbitrage_matrix(params, self.socket)
+        return await self._rpc_call(
+            Method.ARBITRAGE_MATRIX, params, dtos.ArbitrageMatrix
+        )
 
     @cached(ttl=settings.vol_sampling_cache_ttl, noself=True)
     async def vol_sampling(
@@ -152,4 +135,4 @@ class Handler:
             n_stdvs_tail=0,
         )
 
-        return await _vol_sampling(params, self.socket)
+        return await self._rpc_call(Method.VOL_SAMPLING, params, dtos.VolSampling)

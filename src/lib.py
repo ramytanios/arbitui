@@ -52,7 +52,7 @@ class Socket:
     async def register_and_send(self, request: RPCRequest) -> None:
         if writer := self._writer:
             async with self._sem:
-                fut: Future[Dict] = asyncio.get_running_loop().create_future()
+                fut = asyncio.get_running_loop().create_future()
                 async with self._lock:
                     self._pending[request.id] = fut
                 js = RPCRequest.model_dump_json(request, by_alias=True) + "\n"
@@ -106,7 +106,7 @@ class Socket:
             raise RuntimeError(f"Missing pending Future for request id={request.id}")
 
         try:
-            fut_res = await asyncio.wait_for(fut, 60)
+            fut_res = await asyncio.wait_for(fut, settings.socket_timeout)
             return kls.model_validate(fut_res)
         except Exception as e:
             logger.exception(f"fut {request.id} completed with exception: {e}")

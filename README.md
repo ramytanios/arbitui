@@ -12,7 +12,7 @@ Terminal-based interest rates volatility arbitrage analysis tool.
 
 ## Future Features
 
-- 🔧 **Volatility Adjustment**: Ability to adjust volatilities to fix arbitrageable tenors/expiries.
+- **Volatility Adjustment**: Ability to adjust volatilities to fix arbitrageable tenors/expiries.
 
 ## Demo 
 
@@ -30,6 +30,7 @@ just run-tui
 
 ## Architecture
 
-- 🖥️ **Server**: WebSocket server with SQLite persistence, communicates via JSON RPC with [rates-scope](https://github.com/ramytanios/rates-scope)
-- 💻 **Client**: [Textual](https://github.com/Textualize/textual) TUI with interactive data visualization
+- **Server**: WebSocket server with SQLite persistence that communicates with the client and bridges to [rates-scope](https://github.com/ramytanios/rates-scope) via JSON-RPC over a Unix domain socket.
+
+- **Client**: [Textual](https://github.com/Textualize/textual)-based TUI that connects over WebSocket for interactive data visualization.
 

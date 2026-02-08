@@ -1,12 +1,16 @@
 import asyncio
+from asyncio import Future
+from asyncio.locks import Lock, Semaphore
 from asyncio.streams import StreamReader, StreamWriter
+from asyncio.taskgroups import TaskGroup
 from enum import Enum
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional, Type
 
 from loguru import logger
 from pydantic import BaseModel
 
 import dtos
+from settings import settings
 
 
 class Method(Enum):
@@ -38,12 +42,47 @@ class RPCResponse(BaseModel):
 
 class Socket:
     def __init__(self, path: str):
-        self.path = path
-        self.read: Optional[StreamReader] = None
-        self.write: Optional[StreamWriter] = None
+        self._path = path
+        self._reader: Optional[StreamReader] = None
+        self._writer: Optional[StreamWriter] = None
+        self._lock: Lock = Lock()
+        self._sem: Semaphore = Semaphore(settings.max_requests_in_flight)
+        self._pending: Dict[str, Future] = {}
+
+    async def register_and_send(self, request: RPCRequest) -> None:
+        if writer := self._writer:
+            async with self._sem:
+                fut: Future[Dict] = asyncio.get_running_loop().create_future()
+                async with self._lock:
+                    self._pending[request.id] = fut
+                js = RPCRequest.model_dump_json(request, by_alias=True) + "\n"
+                line = js.encode("utf-8")
+                writer.write(line)
+                await writer.drain()
+
+    async def recv_loop(self) -> None:
+        if reader := self._reader:
+            while True:
+                line = await reader.readline()
+                rsp = RPCResponse.model_validate_json(line)
+                if (id := rsp.id) is not None:
+                    fut = self._pending.pop(id, None)
+                    if fut and not fut.done():
+                        if rsp.error is not None or rsp.result is None:
+                            err = (
+                                rsp.error.message
+                                if rsp.error is not None
+                                else "response missing `result`"
+                            )
+                            fut.set_exception(RuntimeError(err))
+                        else:
+                            fut.set_result(rsp.result)
 
     async def __aenter__(self):
-        self.read, self.write = await asyncio.open_unix_connection(path=self.path)
+        self._reader, self._writer = await asyncio.open_unix_connection(path=self._path)
+        tg = TaskGroup()
+        await tg.__aenter__()
+        tg.create_task(self.recv_loop())
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -52,12 +91,23 @@ class Socket:
             logger.exception(
                 f"exception in context: {exc_type.__name__}: {exc}", traceback=tb
             )
+        if self._writer is not None:
+            self._writer.close()
+            await self._writer.wait_closed()
+        self._reader = None
+        self._writer = None
 
-        if self.write is not None:
-            self.write.close()
-            await self.write.wait_closed()
-        self.read = None
-        self.write = None
+    async def call[T: BaseModel](self, request: RPCRequest, kls: Type[T]) -> T:
+        await self.register_and_send(request)
+        fut = self._pending.get(request.id)
 
-    async def call(self, request: RPCRequest) -> RPCResponse:
-        pass
+        if fut is None:
+            # this indicates a bug/race: send() didn't register, or reader removed it early.
+            raise RuntimeError(f"Missing pending Future for request id={request.id}")
+
+        try:
+            fut_res = await asyncio.wait_for(fut, 60)
+            return kls.model_validate(fut_res)
+        except Exception as e:
+            logger.exception(f"fut {request.id} completed with exception: {e}")
+            raise

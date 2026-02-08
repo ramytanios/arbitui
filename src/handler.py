@@ -1,7 +1,5 @@
 import uuid
-from asyncio.locks import Semaphore
 from datetime import date
-from lib import Method, RPCRequest, Socket
 from typing import Type
 
 from aiocache.decorators import cached
@@ -10,6 +8,7 @@ from pydantic import BaseModel
 
 import db
 import dtos
+from lib import Method, RPCRequest, Socket
 from settings import settings
 
 
@@ -21,12 +20,7 @@ async def _rpc_call[T: BaseModel](
 ) -> T:
     logger.info(f"rpc call method: {method.value}")
     request = RPCRequest(method=method.value, params=params, id=str(uuid.uuid4()))
-    rsp = await socket.call(request)
-    if err := rsp.error:
-        raise Exception(f"rpc error: {err.message}")
-    if rsp.result is None:
-        raise Exception("rpc missing `result` in response")
-    return kls.model_validate(rsp.result)
+    return await socket.call(request, kls)
 
 
 async def _arbitrage_check(
@@ -53,7 +47,6 @@ class Handler:
     def __init__(self, socket: Socket, db_ctx: db.Context):
         self.socket = socket
         self.db_ctx = db_ctx
-        self.sem = Semaphore(settings.max_requests_in_flight)
 
     async def _market(self, volCube: dtos.VolatilityCube, ccy: str):
         vol_conventions = await db.get_conventions(ccy, self.db_ctx)
@@ -120,8 +113,7 @@ class Handler:
             expiry=expiry,
         )
 
-        async with self.sem:
-            return await _arbitrage_check(params, self.socket)
+        return await _arbitrage_check(params, self.socket)
 
     async def arbitrage_matrix(
         self,
@@ -135,8 +127,7 @@ class Handler:
             t_ref=t, market=market, static=static, currency=ccy
         )
 
-        async with self.sem:
-            return await _arbitrage_matrix(params, self.socket)
+        return await _arbitrage_matrix(params, self.socket)
 
     @cached(ttl=settings.vol_sampling_cache_ttl, noself=True)
     async def vol_sampling(
@@ -161,5 +152,4 @@ class Handler:
             n_stdvs_tail=0,
         )
 
-        async with self.sem:
-            return await _vol_sampling(params, self.socket)
+        return await _vol_sampling(params, self.socket)

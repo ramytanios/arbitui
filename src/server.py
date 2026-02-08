@@ -5,9 +5,9 @@ from asyncio.taskgroups import TaskGroup
 from contextlib import asynccontextmanager
 from datetime import datetime
 from json.decoder import JSONDecodeError
+from lib import Socket
 from typing import List, Tuple
 
-import aiohttp
 from loguru import logger
 from pydantic import ValidationError
 from pydantic_core._pydantic_core import PydanticSerializationError
@@ -241,8 +241,8 @@ async def websocket_endpoint(ws: WebSocket):
                     logger.exception(f"failed to handle vol samples request: {e}")
 
     async def handle_client_msg_loop():
-        async with aiohttp.ClientSession() as session:
-            handler = Handler(settings.rpc_url, session, ctx)
+        async with Socket(settings.lib_socket_path) as socket:
+            handler = Handler(socket, ctx)
             while True:
                 try:
                     msg = await q_in.get()

@@ -1,33 +1,65 @@
+import uuid
 from asyncio.locks import Semaphore
 from datetime import date
+from lib import Method, RPCRequest, Socket
+from typing import Type
 
 from aiocache.decorators import cached
-from aiohttp import ClientSession
+from loguru import logger
+from pydantic import BaseModel
 
 import db
 import dtos
-import lib
 from settings import settings
 
 
-class Handler:
-    def __init__(
-        self,
-        rpc_url: str,
-        http_session: ClientSession,
-        db_ctx: db.Context,
-    ):
-        self._rpc_url = rpc_url
-        self._http_session = http_session
-        self._db_ctx = db_ctx
+async def _rpc_call[T: BaseModel](
+    method: Method,
+    params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams,
+    socket: Socket,
+    kls: Type[T],
+) -> T:
+    logger.info(f"rpc call method: {method.value}")
+    request = RPCRequest(method=method.value, params=params, id=str(uuid.uuid4()))
+    rsp = await socket.call(request)
+    if err := rsp.error:
+        raise Exception(f"rpc error: {err.message}")
+    if rsp.result is None:
+        raise Exception("rpc missing `result` in response")
+    return kls.model_validate(rsp.result)
 
+
+async def _arbitrage_check(
+    params: dtos.ArbitrageParams, socket: Socket
+) -> dtos.ArbitrageCheck:
+    return await _rpc_call(Method.ARBITRAGE, params, socket, dtos.ArbitrageCheck)
+
+
+async def _arbitrage_matrix(
+    params: dtos.ArbitrageMatrixParams, socket: Socket
+) -> dtos.ArbitrageMatrix:
+    return await _rpc_call(
+        Method.ARBITRAGE_MATRIX, params, socket, dtos.ArbitrageMatrix
+    )
+
+
+async def _vol_sampling(
+    params: dtos.VolSamplingParams, socket: Socket
+) -> dtos.VolSampling:
+    return await _rpc_call(Method.VOL_SAMPLING, params, socket, dtos.VolSampling)
+
+
+class Handler:
+    def __init__(self, socket: Socket, db_ctx: db.Context):
+        self.socket = socket
+        self.db_ctx = db_ctx
         self.sem = Semaphore(settings.max_requests_in_flight)
 
     async def _market(self, volCube: dtos.VolatilityCube, ccy: str):
-        vol_conventions = await db.get_conventions(ccy, self._db_ctx)
+        vol_conventions = await db.get_conventions(ccy, self.db_ctx)
         libor_conventions = vol_conventions.libor_rate
         swap_conventions = vol_conventions.swap_rate
-        floating_rate = (await db.get_libor_rates(ccy, self._db_ctx))[
+        floating_rate = (await db.get_libor_rates(ccy, self.db_ctx))[
             swap_conventions[1].floating_rate
         ]
 
@@ -89,7 +121,7 @@ class Handler:
         )
 
         async with self.sem:
-            return await lib.arbitrage_check(params, self._http_session, self._rpc_url)
+            return await _arbitrage_check(params, self.socket)
 
     async def arbitrage_matrix(
         self,
@@ -104,7 +136,7 @@ class Handler:
         )
 
         async with self.sem:
-            return await lib.arbitrage_matrix(params, self._http_session, self._rpc_url)
+            return await _arbitrage_matrix(params, self.socket)
 
     @cached(ttl=settings.vol_sampling_cache_ttl, noself=True)
     async def vol_sampling(
@@ -130,4 +162,4 @@ class Handler:
         )
 
         async with self.sem:
-            return await lib.vol_sampling(params, self._http_session, self._rpc_url)
+            return await _vol_sampling(params, self.socket)

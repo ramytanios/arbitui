@@ -1,8 +1,8 @@
-import uuid
+import asyncio
+from asyncio.streams import StreamReader, StreamWriter
 from enum import Enum
-from typing import Literal, Optional, Type
+from typing import Literal, Optional
 
-from aiohttp import ClientSession
 from loguru import logger
 from pydantic import BaseModel
 
@@ -16,7 +16,7 @@ class Method(Enum):
     ARBITRAGE_MATRIX = "arbitrage-matrix"
 
 
-class RpcRequest(BaseModel):
+class RPCRequest(BaseModel):
     method: Method
     params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams
     id: str
@@ -29,52 +29,35 @@ class Error(BaseModel):
     data: Optional[dict]
 
 
-class RpcResponse(BaseModel):
+class RPCResponse(BaseModel):
     result: Optional[dict]
     error: Optional[Error]
     id: Optional[str]
     jsonrpc: Literal["2.0"] = "2.0"
 
 
-async def _rpc_call[T: BaseModel](
-    method: Method,
-    params: dtos.ArbitrageParams | dtos.ArbitrageMatrixParams | dtos.VolSamplingParams,
-    session: ClientSession,
-    remote_url: str,
-    kls: Type[T],
-) -> T:
-    logger.info(f"rpc call method: {method.value}")
-    request = RpcRequest(method=method.value, params=params, id=str(uuid.uuid4()))
-    json = request.model_dump(by_alias=True, mode="json")
-    async with session.post(remote_url, json=json) as response:
-        js = await response.json()
-        rsp = RpcResponse.model_validate(js)
-        if err := rsp.error:
-            raise Exception(f"rpc error: {err.message}")
-        if rsp.result is None:
-            raise Exception("rpc missing `result` in response")
-        return kls.model_validate(rsp.result)
+class Socket:
+    def __init__(self, path: str):
+        self.path = path
+        self.read: Optional[StreamReader] = None
+        self.write: Optional[StreamWriter] = None
 
+    async def __aenter__(self):
+        self.read, self.write = await asyncio.open_unix_connection(path=self.path)
+        return self
 
-async def arbitrage_check(
-    params: dtos.ArbitrageParams, session: ClientSession, remote_url: str
-) -> dtos.ArbitrageCheck:
-    return await _rpc_call(
-        Method.ARBITRAGE, params, session, remote_url, dtos.ArbitrageCheck
-    )
+    async def __aexit__(self, exc_type, exc, tb):
+        if exc_type is not None:
+            logger.opt()
+            logger.exception(
+                f"exception in context: {exc_type.__name__}: {exc}", traceback=tb
+            )
 
+        if self.write is not None:
+            self.write.close()
+            await self.write.wait_closed()
+        self.read = None
+        self.write = None
 
-async def arbitrage_matrix(
-    params: dtos.ArbitrageMatrixParams, session: ClientSession, remote_url: str
-) -> dtos.ArbitrageMatrix:
-    return await _rpc_call(
-        Method.ARBITRAGE_MATRIX, params, session, remote_url, dtos.ArbitrageMatrix
-    )
-
-
-async def vol_sampling(
-    params: dtos.VolSamplingParams, session: ClientSession, remote_url: str
-) -> dtos.VolSampling:
-    return await _rpc_call(
-        Method.VOL_SAMPLING, params, session, remote_url, dtos.VolSampling
-    )
+    async def call(self, request: RPCRequest) -> RPCResponse:
+        pass

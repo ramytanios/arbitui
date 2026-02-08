@@ -70,7 +70,7 @@ class Socket:
                     rsp = RPCResponse.model_validate_json(line)
                 except ValidationError as e:
                     logger.warning(f"failed to validate messsage {line}: {e}")
-                    return
+                    continue
                 if (id := rsp.id) is not None:
                     fut = self._pending.pop(id, None)
                     if fut and not fut.done():

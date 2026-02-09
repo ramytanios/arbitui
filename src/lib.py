@@ -93,7 +93,6 @@ class Socket:
 
     async def __aexit__(self, exc_type, exc, tb):
         if exc_type is not None:
-            logger.opt()
             logger.exception(
                 f"exception in context: {exc_type.__name__}: {exc}", traceback=tb
             )

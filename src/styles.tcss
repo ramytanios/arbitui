@@ -73,16 +73,12 @@ VolaSkewChart {
   border: round $secondary;
 }
 
-.arbitrage-cell {
-  width: 100%;
-  border: tall $secondary;
-}
-
 .period-cell {
   background: $surface;
   content-align: center middle;
   width: 100%;
   height: 100%;
+  text-style: bold;
 }
 
 .error-cell {
@@ -104,6 +100,7 @@ VolaSkewChart {
 
 .matrix-body {
   overflow: auto auto;
+  grid-gutter: 1 1;        
   grid-columns: 1fr;
   grid-rows: 1;
   scrollbar-size-vertical: 1;

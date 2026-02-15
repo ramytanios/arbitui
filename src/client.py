@@ -285,13 +285,7 @@ class ArbitrageGrid(Widget, can_focus=True):
             elems.append(PeriodCell(expiry))
             for tenor in self.tenors:
                 if arb := by_rate.get((tenor, expiry)):
-                    css = "success-cell" if arb.arbitrage is None else "error-cell"
-                    cell = ArbitrageCell(
-                        tenor,
-                        expiry,
-                        id=f"T{tenor}E{expiry}",
-                        classes=f"arbitrage-cell {css}",
-                    )
+                    cell = ArbitrageCell(tenor, expiry, arb, id=f"T{tenor}E{expiry}")
                     elems.append(cell)
         return elems
 

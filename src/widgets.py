@@ -20,7 +20,7 @@ from textual_autocomplete import PathAutoComplete
 from textual_plotext.plotext_plot import PlotextPlot
 
 import dtos
-from dtos import Period
+from dtos import ArbitrageCheck, Period
 from settings import settings
 from transition import Point, get_easing_func, transition
 
@@ -222,9 +222,16 @@ class ArbitrageCell(Static):
         self,
         tenor: Period,
         expiry: Period,
+        arb: ArbitrageCheck,
         *args,
         **kwargs,
     ):
         self.tenor = tenor
         self.expiry = expiry
+        self.arb = arb
         super().__init__(*args, **kwargs)
+
+    def on_mount(self) -> None:
+        css = "success-cell" if self.arb.arbitrage is None else "error-cell"
+        self.add_class("arbitrage-cell")
+        self.add_class(css)
